@@ -143,3 +143,4 @@ config.py
 settings.py
 stasis.json
 notify.txt
+debug.txt

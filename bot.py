@@ -1,7 +1,5 @@
 # TODO
 # 1 - def assing_roles
-# 2 - role cards? 
-# 3 - gamemodes in which the roles appear in
 
 import discord
 import asyncio
@@ -806,9 +804,9 @@ async def cmd_role(message, parameters):
                     else:
                         role_guide = "Please choose one of the following: " + ', '.join(['guide', 'table'])
             else:
-                role_guide = "Please choose one of the following: " + ', '.join(['guide', 'table'])
+                role_guide = "Please choose one of the following: " + ', '.join(['guide', 'table', 'all (for BoTC only)'])
         else:
-            role_guide = "Please choose one of the following for the third parameter: {}".format(', '.join(['guide', 'table']))
+            role_guide = "Please choose one of the following for the third parameter: {}".format(', '.join(['guide', 'table', 'all (for BoTC only)']))
         await reply(message, role_guide)
     else:
         num_players = int(num_players)
@@ -816,10 +814,26 @@ async def cmd_role(message, parameters):
             if gamemode in ('random',):
                 msg = "!role is disabled for the **{}** gamemode.".format(gamemode)
             else:
-                msg = "Roles for **{}** players in gamemode **{}**:```\n".format(num_players, gamemode)
-                game_roles = get_roles(gamemode, num_players)
-                msg += '\n'.join("{}: {}".format(x, game_roles[x]) for x in sort_roles(game_roles))
-                msg += '```'
+                if botc_tb_module_name in sys.modules:
+                    if gamemode in [mode.value.lower() for mode in botc_troublebrewing.BOTCGamemode]:
+                        msg = "Roles for **{}** players in gamemode **{}**:```\n".format(num_players, gamemode)
+                        i = num_players
+                        t = gamemodes[gamemode]['roles'][botc_troublebrewing.BOTCCategory.townsfolk.value][i - MIN_PLAYERS]
+                        o = gamemodes[gamemode]['roles'][botc_troublebrewing.BOTCCategory.outsider.value][i - MIN_PLAYERS]
+                        m = gamemodes[gamemode]['roles'][botc_troublebrewing.BOTCCategory.minion.value][i - MIN_PLAYERS]
+                        d = gamemodes[gamemode]['roles'][botc_troublebrewing.BOTCCategory.demon.value][i - MIN_PLAYERS]
+                        msg += "[{p}] Townsfolk ({t}), Outsider ({o}), Minion ({m}), Demon ({d})\n".format(p=i, t=t, o=o, m=m, d=d)
+                        msg += '```'
+                    else:
+                        msg = "Roles for **{}** players in gamemode **{}**:```\n".format(num_players, gamemode)
+                        game_roles = get_roles(gamemode, num_players)
+                        msg += '\n'.join("{}: {}".format(x, game_roles[x]) for x in sort_roles(game_roles))
+                        msg += '```'
+                else:
+                    msg = "Roles for **{}** players in gamemode **{}**:```\n".format(num_players, gamemode)
+                    game_roles = get_roles(gamemode, num_players)
+                    msg += '\n'.join("{}: {}".format(x, game_roles[x]) for x in sort_roles(game_roles))
+                    msg += '```'
             await reply(message, msg)
         else:
             await reply(message, "Please choose a number of players between " + str(gamemodes[gamemode]['min_players']) +\
