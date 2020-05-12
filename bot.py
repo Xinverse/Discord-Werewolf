@@ -1,3 +1,8 @@
+# TODO
+# 1 - def assing_roles
+# 2 - role cards? 
+# 3 - gamemodes in which the roles appear in
+
 import discord
 import asyncio
 import aiohttp
@@ -14,6 +19,8 @@ import urllib.request
 from collections import OrderedDict
 from itertools import chain
 
+import botc_troublebrewing
+
 ################## START INIT #####################
 client = discord.Client()
 # [playing?, {players dict}, day?, [night start, day start], [night elapsed, day elapsed], first join, gamemode, {original roles amount}]
@@ -26,6 +33,8 @@ pingif_dict = {}
 notify_me = []
 stasis = {}
 commands = {}
+
+botc_tb_module_name = "botc_troublebrewing"
 
 wait_bucket = WAIT_BUCKET_INIT
 wait_timer = datetime.now()
@@ -612,6 +621,12 @@ async def cmd_role(message, parameters):
         roles_message += "\n[Wolf Team] " + ", ".join(sort_roles(WOLF_ROLES_ORDERED))
         roles_message += "\n[Neutrals] " + ", ".join(sort_roles(NEUTRAL_ROLES_ORDERED))
         roles_message += "\n[Templates] " + ", ".join(sort_roles(TEMPLATES_ORDERED)) + "```"
+        if botc_tb_module_name in sys.modules:
+            roles_message += "```md\n[Townsfolk][BOTC] " + ", ".join([str(role()).lower() for role in botc_troublebrewing.Townsfolk.__subclasses__()])
+            roles_message += "\n[Outsider][BOTC] " + ", ".join([str(role()).lower() for role in botc_troublebrewing.Outsider.__subclasses__()])
+            roles_message += "\n[Minion][BOTC] " + ", ".join([str(role()).lower() for role in botc_troublebrewing.Minion.__subclasses__()])
+            roles_message += "\n[Demon][BOTC] " + ", ".join([str(role()).lower() for role in botc_troublebrewing.Demon.__subclasses__()])
+            roles_message += "```"
         await reply(message, roles_message)
         return
     elif parameters == "" and session[0]:
@@ -630,8 +645,14 @@ async def cmd_role(message, parameters):
         return
     elif _autocomplete(parameters, roles)[1] == 1:
         role = _autocomplete(parameters, roles)[0]
-        await reply(message, "<https://werewolf.miraheze.org/wiki/{}>\n```\nRole name: {}\nTeam: {}\nDescription: {}\n```".format(
-            role + "_(role)" if role == "lycan" else role.replace(' ', '_'), role, roles[role][0], roles[role][2]))
+        link = "<https://werewolf.miraheze.org/wiki/{}>\n".format(role + "_(role)" if role == "lycan" else role.replace(' ', '_'))
+        if botc_tb_module_name in sys.modules:
+            if role in botc_troublebrewing.tb_roles_dict:
+                botc_role_obj = botc_troublebrewing.BOTCUtils.find_role_by_name(role, botc_troublebrewing.tb_roles_list)
+                await client.send_message(message.channel, embed=botc_role_obj.make_role_card_embed())
+                return
+        await reply(message, "{}```\nRole name: {}\nTeam: {}\nDescription: {}\n```".format(
+            link, role, roles[role][0], roles[role][2]))
         return
     params = parameters.split(' ')
     gamemode = 'default'
@@ -639,7 +660,6 @@ async def cmd_role(message, parameters):
     choice, num = _autocomplete(params[0], gamemodes)
     if num == 1:
         gamemode = choice
-
     if params[0].isdigit():
         num_players = params[0]
     elif len(params) == 2 and params[1].isdigit():
@@ -648,56 +668,143 @@ async def cmd_role(message, parameters):
         if len(params) == 2:
             if params[1] == 'table':
                 # generate role table
-                WIDTH = 20
-                role_dict = dict()
-                for role in gamemodes[gamemode]['roles']:
-                    if max(gamemodes[gamemode]['roles'][role]):
-                        role_dict.update({role : gamemodes[gamemode]['roles'][role]})
-                role_guide = "Role table for gamemode **{}**:\n".format(gamemode)
-                role_guide += "```\n" + " " * (WIDTH + 2)
-                role_guide += ','.join("{}{}".format(' ' * (2 - len(str(x))), x) for x in range(gamemodes[gamemode]['min_players'], gamemodes[gamemode]['max_players'] + 1)) + '\n'
-                role_guide += '\n'.join(role + ' ' * (WIDTH - len(role)) + ": " + repr(
-                    role_dict[role][gamemodes[gamemode]['min_players'] - MIN_PLAYERS:gamemodes[gamemode]['max_players']]) for role in sort_roles(role_dict))
-                role_guide += "\n```"
+                if botc_tb_module_name in sys.modules:
+                    if gamemode in [i.value.lower() for i in botc_troublebrewing.BOTCGamemode]:
+                        WIDTH = 20
+                        role_dict = dict()
+                        for role in gamemodes[gamemode]['roles']:
+                            if max(gamemodes[gamemode]['roles'][role]):
+                                role_dict.update({role : gamemodes[gamemode]['roles'][role]})
+                        role_guide = "Role table for gamemode **{}**:\n".format(gamemode)
+                        role_guide += "```\n" + " " * (WIDTH + 2)
+                        role_guide += ','.join("{}{}".format(' ' * (2 - len(str(x))), x) for x in range(gamemodes[gamemode]['min_players'], gamemodes[gamemode]['max_players'] + 1)) + '\n'
+                        role_guide += '\n'.join(role + ' ' * (WIDTH - len(role)) + ": " + repr(
+                            role_dict[role][gamemodes[gamemode]['min_players'] - MIN_PLAYERS:gamemodes[gamemode]['max_players']]) for role in role_dict)
+                        role_guide += "\n```"
+                    else:
+                        WIDTH = 20
+                        role_dict = dict()
+                        for role in gamemodes[gamemode]['roles']:
+                            if max(gamemodes[gamemode]['roles'][role]):
+                                role_dict.update({role : gamemodes[gamemode]['roles'][role]})
+                        role_guide = "Role table for gamemode **{}**:\n".format(gamemode)
+                        role_guide += "```\n" + " " * (WIDTH + 2)
+                        role_guide += ','.join("{}{}".format(' ' * (2 - len(str(x))), x) for x in range(gamemodes[gamemode]['min_players'], gamemodes[gamemode]['max_players'] + 1)) + '\n'
+                        role_guide += '\n'.join(role + ' ' * (WIDTH - len(role)) + ": " + repr(
+                            role_dict[role][gamemodes[gamemode]['min_players'] - MIN_PLAYERS:gamemodes[gamemode]['max_players']]) for role in sort_roles(role_dict))
+                        role_guide += "\n```"
+                else:
+                    WIDTH = 20
+                    role_dict = dict()
+                    for role in gamemodes[gamemode]['roles']:
+                        if max(gamemodes[gamemode]['roles'][role]):
+                            role_dict.update({role : gamemodes[gamemode]['roles'][role]})
+                    role_guide = "Role table for gamemode **{}**:\n".format(gamemode)
+                    role_guide += "```\n" + " " * (WIDTH + 2)
+                    role_guide += ','.join("{}{}".format(' ' * (2 - len(str(x))), x) for x in range(gamemodes[gamemode]['min_players'], gamemodes[gamemode]['max_players'] + 1)) + '\n'
+                    role_guide += '\n'.join(role + ' ' * (WIDTH - len(role)) + ": " + repr(
+                        role_dict[role][gamemodes[gamemode]['min_players'] - MIN_PLAYERS:gamemodes[gamemode]['max_players']]) for role in sort_roles(role_dict))
+                    role_guide += "\n```"
             elif params[1] == 'guide':
                 # generate role guide
-                role_dict = gamemodes[gamemode]['roles']
-                prev_dict = dict((x, 0) for x in roles if x != 'villager')
-                role_guide = 'Role guide for gamemode **{}**:\n'.format(gamemode)
-                for i in range(gamemodes[gamemode]['max_players'] - MIN_PLAYERS + 1):
-                    current_dict = {}
-                    for role in sort_roles(roles):
-                        if role == 'villager':
+                if botc_tb_module_name in sys.modules:
+                    if gamemode in [i.value.lower() for i in botc_troublebrewing.BOTCGamemode]:
+                        role_guide = 'Role guide for gamemode **{}**:\n'.format(gamemode)
+                        for i in range(gamemodes[gamemode]['min_players'], gamemodes[gamemode]['max_players']+1):
+                            t = gamemodes[gamemode]['roles'][botc_troublebrewing.BOTCCategory.townsfolk.value][i - MIN_PLAYERS]
+                            o = gamemodes[gamemode]['roles'][botc_troublebrewing.BOTCCategory.outsider.value][i - MIN_PLAYERS]
+                            m = gamemodes[gamemode]['roles'][botc_troublebrewing.BOTCCategory.minion.value][i - MIN_PLAYERS]
+                            d = gamemodes[gamemode]['roles'][botc_troublebrewing.BOTCCategory.demon.value][i - MIN_PLAYERS]
+                            role_guide += "**[{p}]** Townsfolk ({t}), Outsider ({o}), Minion ({m}), Demon ({d})\n".format(p=i, t=t, o=o, m=m, d=d)
+                    else:
+                        role_dict = gamemodes[gamemode]['roles']
+                        prev_dict = dict((x, 0) for x in roles if x != 'villager')
+                        role_guide = 'Role guide for gamemode **{}**:\n'.format(gamemode)
+                        for i in range(gamemodes[gamemode]['max_players'] - MIN_PLAYERS + 1):
+                            current_dict = {}
+                            for role in sort_roles(roles):
+                                if role == 'villager':
+                                    continue
+                                if role in role_dict:
+                                    current_dict[role] = role_dict[role][i]
+                                else:
+                                    current_dict[role] = 0
+                            # compare previous and current
+                            if current_dict == prev_dict:
+                                # same
+                                continue
+                            role_guide += '**[{}]** '.format(i + MIN_PLAYERS)
+                            for role in sort_roles(roles):
+                                if role == 'villager':
+                                    continue
+                                if current_dict[role] == 0 and prev_dict[role] == 0:
+                                    # role not in gamemode
+                                    continue
+                                if current_dict[role] > prev_dict[role]:
+                                    # role increased
+                                    role_guide += role
+                                    if current_dict[role] > 1:
+                                        role_guide += " ({})".format(current_dict[role])
+                                    role_guide += ', '
+                                elif prev_dict[role] > current_dict[role]:
+                                    role_guide += '~~{}'.format(role)
+                                    if prev_dict[role] > 1:
+                                        role_guide += " ({})".format(prev_dict[role])
+                                    role_guide += '~~, '
+                            role_guide = role_guide.rstrip(', ') + '\n'
+                            # makes a copy
+                            prev_dict = dict(current_dict)
+                else:
+                    role_dict = gamemodes[gamemode]['roles']
+                    prev_dict = dict((x, 0) for x in roles if x != 'villager')
+                    role_guide = 'Role guide for gamemode **{}**:\n'.format(gamemode)
+                    for i in range(gamemodes[gamemode]['max_players'] - MIN_PLAYERS + 1):
+                        current_dict = {}
+                        for role in sort_roles(roles):
+                            if role == 'villager':
+                                continue
+                            if role in role_dict:
+                                current_dict[role] = role_dict[role][i]
+                            else:
+                                current_dict[role] = 0
+                        # compare previous and current
+                        if current_dict == prev_dict:
+                            # same
                             continue
-                        if role in role_dict:
-                            current_dict[role] = role_dict[role][i]
-                        else:
-                            current_dict[role] = 0
-                    # compare previous and current
-                    if current_dict == prev_dict:
-                        # same
-                        continue
-                    role_guide += '**[{}]** '.format(i + MIN_PLAYERS)
-                    for role in sort_roles(roles):
-                        if role == 'villager':
-                            continue
-                        if current_dict[role] == 0 and prev_dict[role] == 0:
-                            # role not in gamemode
-                            continue
-                        if current_dict[role] > prev_dict[role]:
-                            # role increased
-                            role_guide += role
-                            if current_dict[role] > 1:
-                                role_guide += " ({})".format(current_dict[role])
-                            role_guide += ', '
-                        elif prev_dict[role] > current_dict[role]:
-                            role_guide += '~~{}'.format(role)
-                            if prev_dict[role] > 1:
-                                role_guide += " ({})".format(prev_dict[role])
-                            role_guide += '~~, '
-                    role_guide = role_guide.rstrip(', ') + '\n'
-                    # makes a copy
-                    prev_dict = dict(current_dict)
+                        role_guide += '**[{}]** '.format(i + MIN_PLAYERS)
+                        for role in sort_roles(roles):
+                            if role == 'villager':
+                                continue
+                            if current_dict[role] == 0 and prev_dict[role] == 0:
+                                # role not in gamemode
+                                continue
+                            if current_dict[role] > prev_dict[role]:
+                                # role increased
+                                role_guide += role
+                                if current_dict[role] > 1:
+                                    role_guide += " ({})".format(current_dict[role])
+                                role_guide += ', '
+                            elif prev_dict[role] > current_dict[role]:
+                                role_guide += '~~{}'.format(role)
+                                if prev_dict[role] > 1:
+                                    role_guide += " ({})".format(prev_dict[role])
+                                role_guide += '~~, '
+                        role_guide = role_guide.rstrip(', ') + '\n'
+                        # makes a copy
+                        prev_dict = dict(current_dict)
+            elif params[1] == 'all':
+                if botc_tb_module_name in sys.modules:
+                    if gamemode == botc_troublebrewing.BOTCGamemode.tb.value.lower():
+                        roles_message = 'All roles appearing in **Blood on the Clocktower** - Trouble Brewing Edition'
+                        roles_message += "```md\n[Townsfolk][BOTC Trouble Brewing] " + ", ".join([str(role()).lower() for role in botc_troublebrewing.Townsfolk.__subclasses__()])
+                        roles_message += "\n[Outsider][BOTC Trouble Brewing] " + ", ".join([str(role()).lower() for role in botc_troublebrewing.Outsider.__subclasses__()])
+                        roles_message += "\n[Minion][BOTC Trouble Brewing] " + ", ".join([str(role()).lower() for role in botc_troublebrewing.Minion.__subclasses__()])
+                        roles_message += "\n[Demon][BOTC Trouble Brewing] " + ", ".join([str(role()).lower() for role in botc_troublebrewing.Demon.__subclasses__()])
+                        roles_message += "```"
+                        await reply(message, roles_message)
+                        return
+                    else:
+                        role_guide = "Please choose one of the following: " + ', '.join(['guide', 'table'])
             else:
                 role_guide = "Please choose one of the following: " + ', '.join(['guide', 'table'])
         else:
@@ -2504,14 +2611,33 @@ async def cmd_fstasis(message, parameters):
 async def cmd_gamemode(message, parameters):
     gamemode, num = _autocomplete(parameters, gamemodes)
     if num == 1 and parameters != '':
-        await reply(message, "<https://werewolf.miraheze.org/wiki/{}>\n```\nGamemode: {}\nPlayers: {}\nDescription: {}\n\nUse the command "
-                             "`!roles {} guide` to view roles for this gamemode.```".format(gamemode + "_(gamemode)" if gamemode == "lycan" else gamemode.replace(' ', '_'),
-        gamemode, str(gamemodes[gamemode]['min_players']) + '-' + str(gamemodes[gamemode]['max_players']),
-        gamemodes[gamemode]['description'], gamemode))
+        if botc_tb_module_name in sys.modules:
+            if gamemode in [i.value.lower() for i in botc_troublebrewing.BOTCGamemode]:
+                await reply(message, "<http://bloodontheclocktower.com/wiki/{}>\n```\nGamemode: {}\nPlayers: {}\nGame: Blood on the Clocktower (BOTC)\nDescription: {}\n\nUse the command "
+                            "`!roles {} guide` to view roles for this gamemode.```".format("Trouble_Brewing" if gamemode == botc_troublebrewing.BOTCGamemode.tb.value.lower() 
+                            else "Bad_Moon_Rising" if gamemode == botc_troublebrewing.BOTCGamemode.bmr.value.lower() else "Sects_%26_Violets",
+                            gamemode, str(gamemodes[gamemode]['min_players']) + '-' + str(gamemodes[gamemode]['max_players']),
+                            gamemodes[gamemode]['description'], gamemode))
+            else:
+                await reply(message, "<https://werewolf.miraheze.org/wiki/{}>\n```\nGamemode: {}\nGame: Werewolf\nPlayers: {}\nDescription: {}\n\nUse the command "
+                            "`!roles {} guide` to view roles for this gamemode.```".format(gamemode + "_(gamemode)" if gamemode == "lycan" else gamemode.replace(' ', '_'),
+                            gamemode, str(gamemodes[gamemode]['min_players']) + '-' + str(gamemodes[gamemode]['max_players']),
+                            gamemodes[gamemode]['description'], gamemode))
+        else:
+            await reply(message, "<https://werewolf.miraheze.org/wiki/{}>\n```\nGamemode: {}\nPlayers: {}\nDescription: {}\n\nUse the command "
+                                "`!roles {} guide` to view roles for this gamemode.```".format(gamemode + "_(gamemode)" if gamemode == "lycan" else gamemode.replace(' ', '_'),
+            gamemode, str(gamemodes[gamemode]['min_players']) + '-' + str(gamemodes[gamemode]['max_players']),
+            gamemodes[gamemode]['description'], gamemode))
     else:
         game_list = ""
-        game_list += "\n```ini\n[Main Modes] " + ", ".join(sorted(x for x in (gamemodes) if gamemodes[x]['chance'] != 0))
-        game_list += "\n[Majority Only] " + ", ".join(sorted(x for x in (gamemodes) if gamemodes[x]['chance'] == 0)) + "```"
+        if botc_tb_module_name in sys.modules:
+            game_list += "\n```ini\n[Werewolf | Main] " + ", ".join(sorted(x for x in (gamemodes) if gamemodes[x]['chance'] > 0 and gamemodes[x]['game'] == "werewolf"))
+            game_list += "\n[Werewolf | Majority] " + ", ".join(sorted(x for x in (gamemodes) if gamemodes[x]['chance'] == 0 and gamemodes[x]['game'] == "werewolf")) 
+            game_list += "\n[BOTC] " + ", ".join(sorted(x for x in (gamemodes) if gamemodes[x]['game'] == "botc")) 
+            game_list += "```"
+        else:
+            game_list += "\n```ini\n[Main Modes] " + ", ".join(sorted(x for x in (gamemodes) if gamemodes[x]['chance'] > 0))
+            game_list += "\n[Majority Only] " + ", ".join(sorted(x for x in (gamemodes) if gamemodes[x]['chance'] == 0)) + "```"
         await reply(message, game_list)
 
 @cmd('verifygamemode', [1, 1], "```\n{0}verifygamemode [<gamemode>]\n\nChecks to make sure [<gamemode>] is valid.```", 'verifygamemodes')
@@ -3115,6 +3241,12 @@ def balance_roles(massive_role_list, default_role='villager', num_players=-1):
     return (massive_role_list, '')
 
 async def assign_roles(gamemode):
+
+    if botc_tb_module_name in sys.modules:
+        if gamemode == botc_troublebrewing.BOTCGamemode.tb.value.lower():
+
+            return
+
     massive_role_list = []
     gamemode_roles = get_roles(gamemode, len(session[1]))
 
@@ -5560,6 +5692,8 @@ roles = {'wolf' : ['wolf', 'wolves', "Your job is to kill all of the villagers. 
          'executioner' : ['neutral', 'executioners', "At the start of the game, you will receive a target. This target is on the village team and your goal is to have this player lynched, while you are alive. If your target dies not via lynch, then you will become a jester."],
          'hot potato' : ['neutral', 'hot potatoes', "Under no circumstances may you win the game. You may choose to swap identities with someone else by using `choose <player>` at night."]}
 
+if botc_tb_module_name in sys.modules:
+    roles.update(botc_troublebrewing.tb_roles_dict)
 
 gamemodes = {
     'default' : {
@@ -5567,6 +5701,7 @@ gamemodes = {
         'min_players' : 4,
         'max_players' : 24,
         'chance' : 30,
+        'game' : 'werewolf',
         'roles' : {
             #4, 5, 6, 7, 8, 9, 10,11,12,13,14,15,16,17,18,19,20,21,22,23,24
             'wolf' :
@@ -5617,65 +5752,12 @@ gamemodes = {
             [0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
         }
     },
-#    'test' : {
-#        'description' : "Gamemode for testing stuff.",
-#        'min_players' : 5,
-#        'max_players' : 23,
-#        'roles' : {
-#            #4, 5, 6, 7, 8, 9, 10,11,12,13,14,15,16,17,18,19,20,21,22,23,24
-#            'wolf' :
-#            [1, 1, 1, 1, 1, 1,  1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3],
-#            'werecrow' :
-#            [0, 0, 0, 0, 0, 0,  0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-#            'wolf cub' :
-#            [0, 0, 0, 0, 0, 0,  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-#            'traitor' :
-#            [0, 0, 0, 0, 1, 1,  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 ,1 ,1, 1],
-#            'sorcerer' :
-#            [0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
-#            'cultist' :
-#            [0, 0, 0, 1, 0, 0,  0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'seer' :
-#            [1, 1, 1, 1, 1, 1,  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-#            'shaman' :
-#            [0, 0, 0, 1, 1, 1,  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-#            'harlot' :
-#            [0, 0, 0, 0, 1, 1,  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-#            'hunter' :
-#            [0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-#            'augur' :
-#            [0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
-#            'detective' :
-#            [0, 0, 0, 0, 0, 0,  0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-#            'matchmaker' :
-#            [0, 0, 0, 0, 0, 0,  0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-#            'guardian angel' :
-#            [0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1],
-#            'villager' :
-#            [2, 3, 4, 3, 3, 3,  3, 3, 2, 2, 3, 3, 2, 3, 3, 4, 3, 3, 4, 4, 4],
-#            'crazed shaman' :
-#            [0, 0, 0, 0, 0, 1,  1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2],
-#            'amnesiac' :
-#            [0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
-#            'cursed villager' :
-#            [0, 0, 1, 1, 1, 1,  1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3],
-#            'gunner' :
-#            [0, 0, 0, 0, 0, 0,  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2],
-#            'assassin' :
-#            [0, 0, 0, 0, 0, 0,  0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-#            'mayor' :
-#            [0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
-#            'monster' :
-#            [0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-#            'hag' :
-#            [0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
-#        }
-#    },
     'foolish' : {
         'description' : "Watch out, because the fool is always there to steal the win.",
         'min_players' : 8,
         'max_players' : 24,
         'chance' : 10,
+        'game' : 'werewolf',
         'roles' : {
             #4, 5, 6, 7, 8, 9, 10,11,12,13,14,15,16,17,18,19,20,21,22,23,24
             'wolf' :
@@ -5715,6 +5797,7 @@ gamemodes = {
         'min_players' : 4,
         'max_players' : 16,
         'chance' : 0,
+        'game' : 'werewolf',
         'roles' : {
             #4, 5, 6, 7, 8, 9, 10,11,12,13,14,15,16
             #wolf team
@@ -5754,6 +5837,7 @@ gamemodes = {
         'min_players' : 4,
         'max_players' : 16,
         'chance' : 0,
+        'game' : 'werewolf',
         'roles' : {
             #4, 5, 6, 7, 8, 9, 10,11,12,13,14,15,16
             'wolf' :
@@ -5777,6 +5861,7 @@ gamemodes = {
         'min_players' : 4,
         'max_players' : 16,
         'chance' : 0,
+        'game' : 'werewolf',
         'roles' : {
             #4, 5, 6, 7, 8, 9, 10,11,12,13,14,15,16
             'wolf' :
@@ -5793,30 +5878,12 @@ gamemodes = {
             [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1]
         }
     },
-##    'crazy' : {
-##        'description' : "Random totems galore.",
-##        'min_players' : 4,
-##        'max_players' : 16,
-##        'chance' : 0,
-##        'roles' : {
-##            #4, 5, 6, 7, 8, 9, 10,11,12,13,14,15,16
-##            'wolf' :
-##            [1, 1, 1, 1, 1, 1,  1, 1, 2, 2, 1, 1, 2],
-##            'traitor' :
-##            [0, 0, 0, 0, 1, 1,  1, 1, 1, 1, 2, 2, 2],
-##            'crazed shaman' :
-##            [3, 4, 5, 6, 5, 6,  7, 7, 7, 8, 8, 9, 9],
-##            'fool' :
-##            [0, 0, 0, 0, 1, 1,  1, 2, 2, 2, 3, 3, 3],
-##            'cursed villager' :
-##            [0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0]
-##        }
-##    },
     'belunga' : {
         'description' : "Originally an april fool's joke, this gamemode is interesting, to say the least.",
         'min_players' : 4,
         'max_players' : 24,
         'chance' : 0,
+        'game' : 'werewolf',
         'roles' : {
         }
     },
@@ -5828,6 +5895,7 @@ gamemodes = {
         'min_players' : 8,
         'max_players' : 24,
         'chance' : 0,
+        'game' : 'werewolf',
         'roles' : {
             #4, 5, 6, 7, 8, 9, 10,11,12,13,14,15,16,17,18,19,20,21,22,23,24
             'wolf' :
@@ -5845,6 +5913,7 @@ gamemodes = {
         'min_players' : 6,
         'max_players' : 18,
         'chance' : 5,
+        'game' : 'werewolf',
         'roles' : {
             #4, 5, 6, 7, 8, 9, 10,11,12,13,14,15,16,17,18
             'wolf' :
@@ -5872,6 +5941,7 @@ gamemodes = {
         'min_players' : 8,
         'max_players' : 17,
         'chance' : 0,
+        'game' : 'werewolf',
         'roles' : {
             # 4, 5, 6,7, 8, 9, 10,11,12,13,14,15,16,17
             'wolf' :
@@ -5903,6 +5973,7 @@ gamemodes = {
         'min_players' : 8,
         'max_players' : 20,
         'chance' : 0,
+        'game' : 'werewolf',
         'roles' : {
         }
     },
@@ -5911,6 +5982,7 @@ gamemodes = {
         'min_players' : 4,
         'max_players' : 15,
         'chance' : 5,
+        'game' : 'werewolf',
         'roles' : {
             'wolf' :
             [1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2],
@@ -5947,7 +6019,8 @@ gamemodes = {
         'min_players' : 6,
         'max_players' : 24,
         'chance' : 10,
-         'roles' : {
+        'game' : 'werewolf',
+        'roles' : {
             'seer' :
             [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             'harlot' :
@@ -5989,6 +6062,7 @@ gamemodes = {
         'min_players' : 7,
         'max_players' : 22,
         'chance' : 5,
+        'game' : 'werewolf',
         'roles' : {
             #         7, 8, 9, 10,11,12,13,14,15,16,17,18,19,20,21,22,
             'villager' :
@@ -6035,6 +6109,7 @@ gamemodes = {
         'min_players' : 7,
         'max_players' : 21,
         'chance' : 5,
+        'game' : 'werewolf',
         'roles' : {
             #         7, 8, 9, 10,11,12,13,14,15,16,17,18,19,20,21
             'villager' :
@@ -6073,6 +6148,7 @@ gamemodes = {
         'min_players' : 6,
         'max_players' : 24,
         'chance' : 0,
+        'game' : 'werewolf',
         'roles' : {
             #      6, 7, 8, 9, 10,11,12,13,14,15,16,17,18,19,20,21,22,23,24
             'villager' :
@@ -6117,6 +6193,7 @@ gamemodes = {
         'min_players' : 4,
         'max_players' : 21,
         'chance' : 1,
+        'game' : 'werewolf',
         'roles' : {
             #4, 5, 6, 7, 8, 9, 10,11,12,13,14,15,16,17,18,19,20,21
             'villager' :
@@ -6157,6 +6234,7 @@ gamemodes = {
         'min_players' : 8,
         'max_players' : 24,
         'chance' : 10,
+        'game' : 'werewolf',
         'roles' : {
             #4, 5, 6, 7, 8, 9, 10,11,12,13,14,15,16,17,18,19,20,21,22,23,24
             'villager' :
@@ -6205,10 +6283,11 @@ gamemodes = {
         }
     },
     'bloodbath' : {
-        'description' : "A serial killer is on the loose...shall it end up on the noose?",
+        'description' : "A serial killer is on the loose... shall it end up on the noose?",
         'min_players' : 9,
         'max_players' : 24,
         'chance' : 0,
+        'game' : 'werewolf',
         'roles' : {
             #4, 5, 6, 7, 8, 9, 10,11,12,13,14,15,16,17,18,19,20,21,22,23,24
             # wolf team
@@ -6255,72 +6334,11 @@ gamemodes = {
             [0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4]
         }
     }
-#    'template' : {
-#        'description' : "This is a template you can use for making your own gamemodes.",
-#        'min_players' : 0,
-#        'max_players' : 0,
-#        'roles' : {
-#            #4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24
-#            'wolf' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'werecrow' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'wolf cub' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'werekitten' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'traitor' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'sorcerer' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'cultist' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'seer' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'oracle' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'shaman' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'harlot' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'hunter' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'augur' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'detective' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'matchmaker' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'guardian angel' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'villager' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'jester' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'fool' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'crazed shaman' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'amnesiac' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'cursed villager' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'gunner' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'assassin' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'minion' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'monster' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'mayor' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#            'hag' :
-#            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-#        }
-#    }
 }
 gamemodes['belunga']['roles'] = dict(gamemodes['default']['roles'])
+
+if botc_tb_module_name in sys.modules:
+    gamemodes.update(botc_troublebrewing.gamemode)
 
 VILLAGE_ROLES_ORDERED = ['seer', 'oracle', 'shaman', 'harlot', 'hunter', 'augur', 'detective', 'matchmaker', 'guardian angel', 'bodyguard', 'priest', 'village drunk', 'mystic', 'mad scientist', 'time lord', 'villager']
 WOLF_ROLES_ORDERED = ['wolf', 'werecrow', 'doomsayer', 'wolf cub', 'werekitten', 'wolf shaman', 'wolf mystic', 'traitor', 'hag', 'sorcerer', 'warlock', 'minion', 'cultist']
