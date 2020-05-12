@@ -137,3 +137,9 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+discord_werewolf.code-workspace
+config.py
+settings.py
+stasis.json
+notify.txt
