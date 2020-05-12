@@ -1,8 +1,12 @@
 import enum
+import random
+import datetime
 from botc import *
 
 # ============================== Utility functions ======================
 # -----------------------------------------------------------------------
+
+random.seed(datetime.datetime.now())
 
 class TBRole(enum.Enum):
 
@@ -319,6 +323,22 @@ class Baron(Minion, BOTCRole, TroubleBrewing):
         self._role_name = TBRole.baron
         self._art_link = "http://bloodontheclocktower.com/wiki/images/b/ba/Baron_Token.png"
         self._wiki_link = "http://bloodontheclocktower.com/wiki/Baron"
+    
+    def exec_init_setup(self, townsfolk_obj_list, outsider_obj_list, minion_obj_list, demon_obj_list):
+        random.shuffle(townsfolk_obj_list)
+        townsfolk_obj_list.pop()
+        townsfolk_obj_list.pop()
+        tb_outsider_all = [role_obj() for role_obj in botc_troublebrewing.Outsider.__subclasses__()]
+        random.shuffle(tb_outsider_all)
+        count = 0
+        for outsider in tb_outsider_all:
+            if count >= 2:
+                break
+            else:
+                if str(outsider) not in [str(role) for role in outsider_obj_list]:
+                    outsider_obj_list.append(outsider)
+                    count += 1
+        return [townsfolk_obj_list, outsider_obj_list, minion_obj_list, demon_obj_list]
 
 
 # ============================== Demon ==================================
@@ -360,8 +380,8 @@ gamemode = {
                         "Demon-hunt, but evil has a number of dastardly misinformation tricks up their " \
                         "sleeves, so the good players best question what they think they know if they hope to " \
                         "survive.",
-        'min_players' : 5,
-        'max_players' : 15,
+        'min_players' : MIN_PLAYERS,
+        'max_players' : MAX_PLAYERS,
         'chance' : 0,
         'game' : 'botc',
         'roles' : {
@@ -374,6 +394,20 @@ gamemode = {
             [0, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3],
             BOTCCategory.demon.value :
             [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        },
+        'improved_guide' : {
+            #p     t  o  m  d
+            '5' : [3, 0, 1, 1],
+            '6' : [3, 1, 1, 1],
+            '7' : [5, 0, 1, 1],
+            '8' : [5, 1, 1, 1],
+            '9' : [5, 2, 1, 1],
+            '10': [7, 0, 2, 1],
+            '11': [7, 1, 2, 1],
+            '12': [7, 2, 2, 1],
+            '13': [9, 0, 3, 1],
+            '14': [9, 1, 3, 1],
+            '15': [9, 2, 3, 1]
         }
     }
 }
