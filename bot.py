@@ -17,7 +17,7 @@ import urllib.request
 from collections import OrderedDict
 from itertools import chain
 
-import botc_troublebrewing
+import botc as botc_troublebrewing 
 
 ################## START INIT #####################
 client = discord.Client()
@@ -32,7 +32,7 @@ notify_me = []
 stasis = {}
 commands = {}
 
-botc_tb_module_name = "botc_troublebrewing"
+botc_tb_module_name = "botc"
 
 wait_bucket = WAIT_BUCKET_INIT
 wait_timer = datetime.now()
