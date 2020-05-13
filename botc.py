@@ -72,6 +72,9 @@ lore_text = {
 
 class BOTCUtils:
 
+    class BOTCGameError(Exception):
+        pass
+
     @staticmethod
     def find_role_by_name(role_name_str, role_obj_list):
         for role in role_obj_list:
@@ -142,7 +145,7 @@ class BOTCRole:
     def exec_init_setup(self, townsfolk_obj_list, outsider_obj_list, minion_obj_list, demon_obj_list):
         return [townsfolk_obj_list, outsider_obj_list, minion_obj_list, demon_obj_list] 
     
-    def exec_init_flags(self):
+    def exec_init_flags(self, game_obj):
         return
     
     def make_role_card_embed(self):
@@ -202,6 +205,7 @@ class BOTCGameObject:
         self._player_id_list = player_id_list  # list object
         self._player_obj_list = []  # list object
         self.generate_role_set(len(self._player_id_list))
+        self.generate_setup_flags()
     
     def generate_role_set(self, num_player):
         if num_player > MAX_PLAYERS or num_player < MIN_PLAYERS:
@@ -213,6 +217,7 @@ class BOTCGameObject:
             nb_outsider = role_guide_chart[1]
             nb_minion = role_guide_chart[2]
             nb_demon = role_guide_chart[3]
+
             # Trouble brewing mode
             if self.gamemode == BOTCGamemode.tb:
                 
@@ -242,7 +247,7 @@ class BOTCGameObject:
                 
                 setup = final_townsfolk + final_outsider + final_minion + final_demon
                 random.shuffle(setup)
-                print(setup)
+                #print(setup)
                 self.distribute_roles(setup, self.player_id_list)
                 return
 
@@ -256,7 +261,20 @@ class BOTCGameObject:
                 raise BOTCGameObject.NotBOTCGame("Gamemode is not one of BoTC editions.")
         
     def distribute_roles(self, role_obj_list, player_id_list):
-        pass
+        if len(role_obj_list) != len(player_id_list):
+            raise BOTCUtils.BOTCGameError("Incorrect number of players detected")
+        else:
+            ret = []
+            for player_id in player_id_list:
+                role_obj = role_obj_list.pop()
+                player_obj = BOTCPlayer(player_id, role_obj)
+                ret.append(player_obj)
+        self._player_obj_list = ret
+        return ret
+    
+    def generate_setup_flags(self):
+        for player_obj in self._player_obj_list:
+            player_obj._real_role.exec_init_flags(self)
     
     @property
     def gamemode(self):
@@ -265,6 +283,11 @@ class BOTCGameObject:
     @property
     def player_id_list(self):
         return self._player_id_list
+
+
+class Flag(enum.Enum):
+
+    fortune_teller_red_herring = "red herring"  # registers as evil to the fortune teller
 
 
 class BOTCPlayer:
@@ -276,12 +299,17 @@ class BOTCPlayer:
 
     def __init__(self, userid_str, role_obj):
         self._userid = userid_str
-        self._role = role_obj 
+        self._real_role = role_obj 
+        self._apparent_role = role_obj
         self._state = BOTCPlayer.PlayerState.alive
+        self._flags = []
+    
+    def set_flag(self, flag_obj):
+        self._flags.append(flag_obj)
     
     @property
     def role(self):
-        return self._role
+        return self._real_role
     
     @property
     def userid(self):
@@ -380,7 +408,7 @@ class TBRole(enum.Enum):
     virgin = "Virgin"
     slayer = "Slayer"
     soldier = "Soldier"
-    mayor = "Mayor"
+    citymayor = "City Mayor"
     butler = "Butler"
     drunk = "Drunk"
     recluse = "Recluse"
@@ -402,6 +430,14 @@ class TroubleBrewing:
 # ---------- Townsfolk [Trouble Brewiding Edition] ----------
 
 class Washerwoman(Townsfolk, BOTCRole, TroubleBrewing):
+    """Washerwoman role object - trouble brewing edition
+    Starts knowing 1 of 2 players is a particular Townsfolk.
+
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: NO  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: YES  # Sends initial info to the player?
+    """
     
     def __init__(self):
         BOTCRole.__init__(self)
@@ -416,6 +452,14 @@ class Washerwoman(Townsfolk, BOTCRole, TroubleBrewing):
 
 
 class Librarian(Townsfolk, BOTCRole, TroubleBrewing):
+    """Librarian role object - trouble brewing edition
+    Starts knowing 1 of 2 players is a particular Outsider
+    
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: NO  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: YES  # Sends initial info to the player?
+    """
     
     def __init__(self):
         BOTCRole.__init__(self)
@@ -431,6 +475,14 @@ class Librarian(Townsfolk, BOTCRole, TroubleBrewing):
 
 
 class Investigator(Townsfolk, BOTCRole, TroubleBrewing):
+    """Investigator role object - trouble brewing edition
+    Starts knowing 1 of 2 players is a particular Minion
+
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: NO  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: YES  # Sends initial info to the player?
+    """
 
     def __init__(self):
         BOTCRole.__init__(self)
@@ -445,6 +497,14 @@ class Investigator(Townsfolk, BOTCRole, TroubleBrewing):
 
 
 class Chef(Townsfolk, BOTCRole, TroubleBrewing):
+    """Chef role object - trouble brewing edition
+    Starts knowing how many pairs of evil players there are
+    
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: NO  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: YES  # Sends initial info to the player?
+    """
     
     def __init__(self):
         BOTCRole.__init__(self)
@@ -458,6 +518,14 @@ class Chef(Townsfolk, BOTCRole, TroubleBrewing):
 
 
 class Empath(Townsfolk, BOTCRole, TroubleBrewing):
+    """Empath role object - trouble brewing edition
+    Learns how many of their 2 alive neighbors are evil
+    
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: NO  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: NO  # Sends initial info to the player?
+    """
     
     def __init__(self):
         BOTCRole.__init__(self)
@@ -471,6 +539,14 @@ class Empath(Townsfolk, BOTCRole, TroubleBrewing):
 
 
 class FortuneTeller(Townsfolk, BOTCRole, TroubleBrewing):
+    """Fortune teller role object - trouble brewing edition
+    Chooses 2 players and learns if either is a demon, there is a red herring
+    
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: YES  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: NO  # Sends initial info to the player?
+    """
     
     def __init__(self):
         BOTCRole.__init__(self)
@@ -483,9 +559,25 @@ class FortuneTeller(Townsfolk, BOTCRole, TroubleBrewing):
         self._role_name = TBRole.fortuneteller
         self._art_link = "http://bloodontheclocktower.com/wiki/images/3/3a/Fortune_Teller_Token.png"
         self._wiki_link = "http://bloodontheclocktower.com/wiki/Fortune_Teller"
+    
+    def exec_init_flags(self, game_obj):
+        random.shuffle(game_obj._player_obj_list)
+        for player_obj in game_obj._player_obj_list:
+            role_obj = player_obj._real_role
+            if role_obj.get_team() == BOTCTeam.good:
+                player_obj.set_flag(Flag.fortune_teller_red_herring)
+                return
 
 
 class Undertaker(Townsfolk, BOTCRole, TroubleBrewing):
+    """Undertaker role object - trouble brewing edition
+    Learns which character died by execution today.
+
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: NO  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: NO  # Sends initial info to the player?
+    """
 
     def __init__(self):
         BOTCRole.__init__(self)
@@ -499,6 +591,14 @@ class Undertaker(Townsfolk, BOTCRole, TroubleBrewing):
 
 
 class Monk(Townsfolk, BOTCRole, TroubleBrewing):
+    """Monk role object - trouble brewing edition
+    Chooses a player (not themself) to protect them from demon kill
+    
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: YES  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: NO  # Sends initial info to the player?
+    """
     
     def __init__(self):
         BOTCRole.__init__(self)
@@ -513,6 +613,14 @@ class Monk(Townsfolk, BOTCRole, TroubleBrewing):
 
 
 class Ravenkeeper(Townsfolk, BOTCRole, TroubleBrewing):
+    """Ravenkeeper role object - trouble brewing edition
+    If they die at night, choose any player to learn their character.
+    
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: NO  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: NO  # Sends initial info to the player?
+    """
     
     def __init__(self):
         BOTCRole.__init__(self)
@@ -527,6 +635,14 @@ class Ravenkeeper(Townsfolk, BOTCRole, TroubleBrewing):
 
 
 class Virgin(Townsfolk, BOTCRole, TroubleBrewing):
+    """Virgin role object - trouble brewing edition
+    The first time they are nominated, if the nominator is a Townsfolk, they are executed immediately.
+
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: NO  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: NO  # Sends initial info to the player?
+    """
 
     def __init__(self):
         BOTCRole.__init__(self)
@@ -542,6 +658,14 @@ class Virgin(Townsfolk, BOTCRole, TroubleBrewing):
 
 
 class Slayer(Townsfolk, BOTCRole, TroubleBrewing):
+    """Slayer role object - trouble brewing edition
+    Choose a player, if they are the demon, they die
+    
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: NO  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: NO  # Sends initial info to the player?
+    """
 
     def __init__(self):
         BOTCRole.__init__(self)
@@ -556,6 +680,14 @@ class Slayer(Townsfolk, BOTCRole, TroubleBrewing):
 
 
 class Soldier(Townsfolk, BOTCRole, TroubleBrewing):
+    """Soldier role object - trouble brewing edition
+    Safe from the demon
+
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: NO  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: NO  # Sends initial info to the player?
+    """
 
     def __init__(self):
         BOTCRole.__init__(self)
@@ -568,7 +700,16 @@ class Soldier(Townsfolk, BOTCRole, TroubleBrewing):
         self._wiki_link = "http://bloodontheclocktower.com/wiki/Soldier"
 
 
-class Mayor(Townsfolk, BOTCRole, TroubleBrewing):
+class CityMayor(Townsfolk, BOTCRole, TroubleBrewing):
+    """Mayor role object - trouble brewing edition
+    If only 3 players live and no execution occurs, your team wins. If you die at night, another
+    player might die instead.
+    
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: NO  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: NO  # Sends initial info to the player?
+    """
 
     def __init__(self):
         BOTCRole.__init__(self)
@@ -577,7 +718,7 @@ class Mayor(Townsfolk, BOTCRole, TroubleBrewing):
         self._desc_string = "The Mayor can win by peaceful means on the final day."
         self._instr_string = "If only 3 players live & no execution occurs, your team wins. " \
                              "If you die at night, another player might die instead."
-        self._role_name = TBRole.mayor
+        self._role_name = TBRole.citymayor
         self._art_link = "http://bloodontheclocktower.com/wiki/images/c/c4/Mayor_Token.png"
         self._wiki_link = "http://bloodontheclocktower.com/wiki/Mayor"
 
@@ -585,6 +726,15 @@ class Mayor(Townsfolk, BOTCRole, TroubleBrewing):
 # ---------- Outsider [Trouble Brewiding Edition] ----------
 
 class Butler(Outsider, BOTCRole, TroubleBrewing):
+    """Butler role object - trouble brewing edition
+    Each night, choose a player (not yourself): tomorrow, you may only vote if they are voting 
+    too.
+    
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: NO  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: NO  # Sends initial info to the player?
+    """
 
     def __init__(self):
         BOTCRole.__init__(self)
@@ -599,6 +749,14 @@ class Butler(Outsider, BOTCRole, TroubleBrewing):
 
 
 class Drunk(Outsider, BOTCRole, TroubleBrewing):
+    """Drunk role object - trouble brewing edition
+    You think you are a Townsfolk, but your ability malfunctions.
+
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: NO  # Apply flags to other roles?
+    - init_role: YES  # Sends a different role to the player?
+    - init_info: NO  # Sends initial info to the player?
+    """
 
     def __init__(self):
         BOTCRole.__init__(self)
@@ -614,6 +772,14 @@ class Drunk(Outsider, BOTCRole, TroubleBrewing):
 
 
 class Recluse(Outsider, BOTCRole, TroubleBrewing):
+    """Recluse role object - trouble brewing edition
+    You might register as evil & as a Minion or Demon, even if dead.
+
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: YES  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: NO  # Sends initial info to the player?
+    """
 
     def __init__(self):
         BOTCRole.__init__(self)
@@ -627,6 +793,14 @@ class Recluse(Outsider, BOTCRole, TroubleBrewing):
 
 
 class Saint(Outsider, BOTCRole, TroubleBrewing):
+    """Saint role object - trouble brewing edition
+    If you die by execution, your team loses.
+    
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: NO  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: NO  # Sends initial info to the player?
+    """
 
     def __init__(self):
         BOTCRole.__init__(self)
@@ -642,6 +816,14 @@ class Saint(Outsider, BOTCRole, TroubleBrewing):
 # ---------- Minion [Trouble Brewiding Edition] ----------
 
 class Poisoner(Minion, BOTCRole, TroubleBrewing):
+    """Poisoner role object - trouble brewing edition
+    Each night, choose a player, their ability malfunctions tonight and tomorrow day.
+
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: NO  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: NO  # Sends initial info to the player?
+    """
 
     def __init__(self):
         BOTCRole.__init__(self)
@@ -656,6 +838,14 @@ class Poisoner(Minion, BOTCRole, TroubleBrewing):
 
 
 class ScarletWoman(Minion, BOTCRole, TroubleBrewing):
+    """Scarlet woman role object - trouble brewing edition
+    If there are 5 or more players alive & the Demon dies, you become the Demon.
+
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: NO  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: NO  # Sends initial info to the player?
+    """
 
     def __init__(self):
         BOTCRole.__init__(self)
@@ -669,6 +859,14 @@ class ScarletWoman(Minion, BOTCRole, TroubleBrewing):
 
 
 class Baron(Minion, BOTCRole, TroubleBrewing):
+    """Baron role object - trouble brewing edition
+    There are extra Outsiders in play [+2 Outsiders]
+    
+    - init_setup: YES  # Change the roles setup?
+    - init_flags: NO  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: NO  # Sends initial info to the player?
+    """
 
     def __init__(self):
         BOTCRole.__init__(self)
@@ -700,6 +898,15 @@ class Baron(Minion, BOTCRole, TroubleBrewing):
 # ---------- Demon [Trouble Brewiding Edition] ----------
 
 class Imp(Demon, BOTCRole, TroubleBrewing):
+    """Imp role object - trouble brewing edition
+    Each night*, choose a player: they die. If you kill yourself this way, a Minion becomes the Imp.
+    
+    
+    - init_setup: NO  # Change the roles setup?
+    - init_flags: NO  # Apply flags to other roles?
+    - init_role: NO  # Sends a different role to the player?
+    - init_info: NO  # Sends initial info to the player?
+    """
 
     def __init__(self):
         BOTCRole.__init__(self)
@@ -727,6 +934,7 @@ tb_roles_dict = {str(role).lower(): [role.get_category().value, str(role),
 
 
 
-
-a = BOTCGameObject(BOTCGamemode.tb, ["1", "2", "3", "4", "5", "6", "7"])
+if __name__ == "__main__":
+    a = BOTCGameObject(BOTCGamemode.tb, ["1", "2", "3", "4", "5", "6", "7"])
+    print(a.player_id_list)
 
