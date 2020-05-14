@@ -121,18 +121,28 @@ class TownSquare:
     DEAD_TOKEN_COLOR = (0, 0, 0)
     VOTE_TOKEN_COLOR = (255, 255, 255)
     BACKGROUND_COLOR = (181, 178, 172)
+    TABLE_COLOR = (84, 84, 84)
+    TEXT_COLOR = (255, 255, 255)
 
     def __init__(self, game_obj):
 
+        nb_players = len(game_obj.player_id_list)
+
         im = Image.new('RGB', (self.PIC_SQUARE_SIDE, self.PIC_SQUARE_SIDE), self.BACKGROUND_COLOR)
         draw = ImageDraw.Draw(im)
-        nb_players = len(game_obj.player_id_list)
+
+        # Draw the table
+        draw.ellipse(self.find_boundary_box(self.get_x_center(), self.get_y_center(), self.RADIUS),
+                     outline=self.TABLE_COLOR, fill=self.TABLE_COLOR)
+
+        # Draw the tokens
         for n in range(nb_players):
             center_x = self.get_x_from_angle(n*self.get_rad_angle(nb_players))
             center_y = self.get_y_from_angle(n*self.get_rad_angle(nb_players))
             draw.ellipse(self.find_boundary_box(center_x, center_y, self.TOKEN_RADIUS), 
                          outline=self.ALIVE_TOKEN_COLOR, fill=self.ALIVE_TOKEN_COLOR)
 
+        # Center stats text
         role_guide_chart_temp = gamemode[game_obj.gamemode.value.lower()]["improved_guide"]
         role_guide_chart = role_guide_chart_temp[str(nb_players)]
         nb_townsfolk = role_guide_chart[0]
@@ -150,11 +160,27 @@ class TownSquare:
                          str(nb_demon)
                     )
 
-        font_path = "wilson.ttf"
+        font_path = "assets/wilson.ttf"
         font = ImageFont.truetype(font_path, 22)
-        draw.text((180, 180), center_msg, fill=self.DEAD_TOKEN_COLOR, font=font)
+        draw.text((180, 180), center_msg, fill=self.TEXT_COLOR, font=font)
 
-        im.save('botctownsquare.jpg', quality=95)
+        im.save('assets/botctownsquare.jpg', quality=95)
+
+        background = Image.open("assets/botctownsquare.jpg")
+        chair = Image.open("assets/chair.png")
+        chair_size_width, chair_size_height = chair.size[0], chair.size[1]
+
+        # Draw the chairs
+        for n in range(nb_players):
+            x = self.get_chair_x_from_angle(n*self.get_rad_angle(nb_players))
+            y = self.get_chair_y_from_angle(n*self.get_rad_angle(nb_players))
+            x -= chair_size_width * 0.50
+            y -= chair_size_height * 0.55
+            rotated = chair.rotate(math.degrees(n*self.get_rad_angle(nb_players)), Image.NEAREST, expand=1)
+            transposed  = rotated.transpose(Image.ROTATE_180)
+            background.paste(transposed, (int(x), int(y)), transposed)
+
+        background.save("assets/botctownsquare.jpg", "JPEG")
     
     @staticmethod
     def get_x_center():
@@ -171,18 +197,30 @@ class TownSquare:
     
     @staticmethod
     def get_x_from_angle(rad_angle):
-        return TownSquare.RADIUS * math.sin(rad_angle) + TownSquare.get_x_center()
+        """For the tokens only"""
+        return 0.8 * TownSquare.RADIUS * math.sin(rad_angle) + TownSquare.get_x_center()
     
     @staticmethod
     def get_y_from_angle(rad_angle):
-        return TownSquare.RADIUS * math.cos(rad_angle) + TownSquare.get_y_center()
+        """For the tokens only"""
+        return 0.8 * TownSquare.RADIUS * math.cos(rad_angle) + TownSquare.get_y_center()
+    
+    @staticmethod
+    def get_chair_x_from_angle(rad_angle):
+        """For the chairs only"""
+        return 1.2 * TownSquare.RADIUS * math.sin(rad_angle) + TownSquare.get_x_center()
+    
+    @staticmethod
+    def get_chair_y_from_angle(rad_angle):
+        """For the chairs only"""
+        return 1.2 * TownSquare.RADIUS * math.cos(rad_angle) + TownSquare.get_y_center()
     
     @staticmethod
     def find_boundary_box(center_x, center_y, r):
         return (center_x - r, center_y - r, center_x + r, center_y + r)
     
     def get_image(self):
-        return 'botctownsquare.jpg'
+        return 'assets/botctownsquare.jpg'
 
 
 class BOTCRole:
@@ -357,6 +395,9 @@ class BOTCGameObject:
         random.shuffle(self._player_obj_list)
         self._sitting_order = tuple(self._player_obj_list)
     
+    def __repr__(self):
+        return "BOTC Game Object"
+    
     @property
     def gamemode(self):
         return self._gamemode
@@ -390,8 +431,12 @@ class BOTCPlayer:
         self._flags.append(flag_obj)
     
     @property
-    def role(self):
+    def real_role(self):
         return self._real_role
+    
+    @property
+    def apparent_role(self):
+        return self._apparent_role
     
     @property
     def userid(self):
@@ -1024,6 +1069,8 @@ tb_roles_dict = {str(role).lower(): [role.get_category().value, str(role),
 
 if __name__ == "__main__":
     a = BOTCGameObject(BOTCGamemode.tb, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"])
+    #a = BOTCGameObject(BOTCGamemode.tb, ["1", "2", "3", "4", "5", "6", "7", "8"])
+    #a = BOTCGameObject(BOTCGamemode.tb, ["1", "2", "3", "4", "5"])
     b = TownSquare(a)
     print(a.player_id_list)
 
