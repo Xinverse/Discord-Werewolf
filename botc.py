@@ -2,6 +2,8 @@ import enum
 import random
 import discord
 import datetime
+import math
+from PIL import Image, ImageDraw, ImageFont
 
 random.seed(datetime.datetime.now())
 
@@ -108,6 +110,81 @@ class BOTCUtils:
         return tb_all
 
 
+class TownSquare:
+    
+    PIC_SQUARE_SIDE = 500
+    BUFFER = 50
+    RADIUS = 200
+    TOKEN_RADIUS = 25
+    VOTE_TOKEN_RADIUS = 5
+    ALIVE_TOKEN_COLOR = (242, 228, 201)
+    DEAD_TOKEN_COLOR = (0, 0, 0)
+    VOTE_TOKEN_COLOR = (255, 255, 255)
+    BACKGROUND_COLOR = (181, 178, 172)
+
+    def __init__(self, game_obj):
+
+        im = Image.new('RGB', (self.PIC_SQUARE_SIDE, self.PIC_SQUARE_SIDE), self.BACKGROUND_COLOR)
+        draw = ImageDraw.Draw(im)
+        nb_players = len(game_obj.player_id_list)
+        for n in range(nb_players):
+            center_x = self.get_x_from_angle(n*self.get_rad_angle(nb_players))
+            center_y = self.get_y_from_angle(n*self.get_rad_angle(nb_players))
+            draw.ellipse(self.find_boundary_box(center_x, center_y, self.TOKEN_RADIUS), 
+                         outline=self.ALIVE_TOKEN_COLOR, fill=self.ALIVE_TOKEN_COLOR)
+
+        role_guide_chart_temp = gamemode[game_obj.gamemode.value.lower()]["improved_guide"]
+        role_guide_chart = role_guide_chart_temp[str(nb_players)]
+        nb_townsfolk = role_guide_chart[0]
+        nb_outsider = role_guide_chart[1]
+        nb_minion = role_guide_chart[2]
+        nb_demon = role_guide_chart[3]
+
+        center_msg = "{}\n[TOTAL] {} players.\n\nTownsfolk: {}\nOutsider: {}\nMinion: {}\n" \
+                     "Demon: {}".format(
+                         game_obj.gamemode.value,
+                         str(nb_players),
+                         str(nb_townsfolk),
+                         str(nb_outsider),
+                         str(nb_minion),
+                         str(nb_demon)
+                    )
+
+        font_path = "wilson.ttf"
+        font = ImageFont.truetype(font_path, 22)
+        draw.text((180, 180), center_msg, fill=self.DEAD_TOKEN_COLOR, font=font)
+
+        im.save('botctownsquare.jpg', quality=95)
+    
+    @staticmethod
+    def get_x_center():
+        coord = TownSquare.PIC_SQUARE_SIDE - TownSquare.BUFFER - TownSquare.RADIUS
+        return coord
+
+    @staticmethod
+    def get_y_center():
+        return TownSquare.get_x_center()
+
+    @staticmethod
+    def get_rad_angle(nb_player):
+        return 2 * math.pi / nb_player
+    
+    @staticmethod
+    def get_x_from_angle(rad_angle):
+        return TownSquare.RADIUS * math.sin(rad_angle) + TownSquare.get_x_center()
+    
+    @staticmethod
+    def get_y_from_angle(rad_angle):
+        return TownSquare.RADIUS * math.cos(rad_angle) + TownSquare.get_y_center()
+    
+    @staticmethod
+    def find_boundary_box(center_x, center_y, r):
+        return (center_x - r, center_y - r, center_x + r, center_y + r)
+    
+    def get_image(self):
+        return 'botctownsquare.jpg'
+
+
 class BOTCRole:
 
     def __init__(self):
@@ -204,6 +281,7 @@ class BOTCGameObject:
         self._gamemode = gamemode  # enum.Enum object here
         self._player_id_list = player_id_list  # list object
         self._player_obj_list = []  # list object
+        self._sitting_order = tuple()
         self.generate_role_set(len(self._player_id_list))
         self.generate_setup_flags()
     
@@ -270,11 +348,14 @@ class BOTCGameObject:
                 player_obj = BOTCPlayer(player_id, role_obj)
                 ret.append(player_obj)
         self._player_obj_list = ret
-        return ret
     
     def generate_setup_flags(self):
         for player_obj in self._player_obj_list:
             player_obj._real_role.exec_init_flags(self)
+    
+    def generate_frozen_sitting(self):
+        random.shuffle(self._player_obj_list)
+        self._sitting_order = tuple(self._player_obj_list)
     
     @property
     def gamemode(self):
@@ -301,7 +382,8 @@ class BOTCPlayer:
         self._userid = userid_str
         self._real_role = role_obj 
         self._apparent_role = role_obj
-        self._state = BOTCPlayer.PlayerState.alive
+        self._real_state = BOTCPlayer.PlayerState.alive
+        self._apparent_state = BOTCPlayer.PlayerState.alive
         self._flags = []
     
     def set_flag(self, flag_obj):
@@ -316,14 +398,20 @@ class BOTCPlayer:
         return self._userid
     
     @property
-    def state(self):
-        return self._state
+    def real_state(self):
+        return self._real_state
+    
+    @property
+    def apparent_state(self):
+        return self._apparent_state
     
     def exec_death(self):
-        self._state = BOTCPlayer.PlayerState.dead
+        self._real_state = BOTCPlayer.PlayerState.dead
+        self._apparent_state = BOTCPlayer.PlayerState.dead
 
     def exec_fleave(self):
-        self._state = BOTCPlayer.PlayerState.fleaved
+        self._real_state = BOTCPlayer.PlayerState.fleaved
+        self._apparent_state = BOTCPlayer.PlayerState.fleaved
 
 
 # =======================================================================
@@ -935,6 +1023,7 @@ tb_roles_dict = {str(role).lower(): [role.get_category().value, str(role),
 
 
 if __name__ == "__main__":
-    a = BOTCGameObject(BOTCGamemode.tb, ["1", "2", "3", "4", "5", "6", "7"])
+    a = BOTCGameObject(BOTCGamemode.tb, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"])
+    b = TownSquare(a)
     print(a.player_id_list)
 
