@@ -123,10 +123,11 @@ class TownSquare:
     BACKGROUND_COLOR = (181, 178, 172)
     TABLE_COLOR = (84, 84, 84)
     TEXT_COLOR = (255, 255, 255)
+    LABEL_BACKGROUND_COLOR = (51, 51, 153)
 
     def __init__(self, game_obj):
 
-        nb_players = len(game_obj.player_id_list)
+        nb_players = len(game_obj.frozen_sitting)
 
         im = Image.new('RGB', (self.PIC_SQUARE_SIDE, self.PIC_SQUARE_SIDE), self.BACKGROUND_COLOR)
         draw = ImageDraw.Draw(im)
@@ -135,12 +136,38 @@ class TownSquare:
         draw.ellipse(self.find_boundary_box(self.get_x_center(), self.get_y_center(), self.RADIUS),
                      outline=self.TABLE_COLOR, fill=self.TABLE_COLOR)
 
-        # Draw the tokens
         for n in range(nb_players):
+
+            player_obj = game_obj.frozen_sitting[n]
+
+            # Draw the tokens
             center_x = self.get_x_from_angle(n*self.get_rad_angle(nb_players))
             center_y = self.get_y_from_angle(n*self.get_rad_angle(nb_players))
-            draw.ellipse(self.find_boundary_box(center_x, center_y, self.TOKEN_RADIUS), 
-                         outline=self.ALIVE_TOKEN_COLOR, fill=self.ALIVE_TOKEN_COLOR)
+
+            # Alive player token
+            if player_obj.apparent_state == BOTCPlayer.PlayerState.alive:
+                draw.ellipse(self.find_boundary_box(center_x, center_y, self.TOKEN_RADIUS), 
+                            outline=self.ALIVE_TOKEN_COLOR, fill=self.ALIVE_TOKEN_COLOR)
+
+            # Dead player token
+            elif player_obj.apparent_state == BOTCPlayer.PlayerState.dead:
+                draw.ellipse(self.find_boundary_box(center_x, center_y, self.TOKEN_RADIUS), 
+                            outline=self.DEAD_TOKEN_COLOR, fill=self.DEAD_TOKEN_COLOR)
+
+            # Fleaved player is drawn with a dead token without the vote token
+            else:
+                draw.ellipse(self.find_boundary_box(center_x, center_y, self.TOKEN_RADIUS), 
+                            outline=self.DEAD_TOKEN_COLOR, fill=self.DEAD_TOKEN_COLOR)
+            
+            # Draw the username labels
+            member = player_obj._user_obj
+            label = member.name[:10]
+            unicode_font = ImageFont.truetype("assets/DejaVuSans.ttf", 12)
+            w, h = unicode_font.getsize(label)
+            x = center_x - 1.2 * self.TOKEN_RADIUS
+            y = center_y + 1.2 * self.TOKEN_RADIUS
+            draw.rectangle((x, y, x + w, y + h), fill = self.LABEL_BACKGROUND_COLOR)
+            draw.text((x, y), font=unicode_font, text = label)
 
         # Center stats text
         role_guide_chart_temp = gamemode[game_obj.gamemode.value.lower()]["improved_guide"]
@@ -174,9 +201,9 @@ class TownSquare:
         for n in range(nb_players):
             x = self.get_chair_x_from_angle(n*self.get_rad_angle(nb_players))
             y = self.get_chair_y_from_angle(n*self.get_rad_angle(nb_players))
-            x -= chair_size_width * 0.50
-            y -= chair_size_height * 0.55
-            rotated = chair.rotate(math.degrees(n*self.get_rad_angle(nb_players)), Image.NEAREST, expand=1)
+            x -= chair_size_width * 0.5
+            y -= chair_size_height * 0.5
+            rotated = chair.rotate(math.degrees(n*self.get_rad_angle(nb_players)), Image.NEAREST, expand=False)
             transposed  = rotated.transpose(Image.ROTATE_180)
             background.paste(transposed, (int(x), int(y)), transposed)
 
@@ -312,16 +339,17 @@ class BOTCGameObject:
     class NotBOTCGame(Exception):
         pass
 
-    def __init__(self, gamemode, player_id_list):
+    def __init__(self, gamemode, member_obj_list):
         if gamemode not in BOTCGamemode:
             raise BOTCGameObject.NotBOTCGame("Gamemode is not one of BoTC editions.")
         self._phase = BOTCGameObject.Phase.idle
         self._gamemode = gamemode  # enum.Enum object here
-        self._player_id_list = player_id_list  # list object
+        self._member_obj_list = member_obj_list
         self._player_obj_list = []  # list object
         self._sitting_order = tuple()
-        self.generate_role_set(len(self._player_id_list))
+        self.generate_role_set(len(self._member_obj_list))
         self.generate_setup_flags()
+        self.generate_frozen_sitting()
     
     def generate_role_set(self, num_player):
         if num_player > MAX_PLAYERS or num_player < MIN_PLAYERS:
@@ -364,7 +392,7 @@ class BOTCGameObject:
                 setup = final_townsfolk + final_outsider + final_minion + final_demon
                 random.shuffle(setup)
                 #print(setup)
-                self.distribute_roles(setup, self.player_id_list)
+                self.distribute_roles(setup, self.member_obj_list)
                 return
 
             # Bad moon rising mode
@@ -376,14 +404,14 @@ class BOTCGameObject:
             else:
                 raise BOTCGameObject.NotBOTCGame("Gamemode is not one of BoTC editions.")
         
-    def distribute_roles(self, role_obj_list, player_id_list):
-        if len(role_obj_list) != len(player_id_list):
+    def distribute_roles(self, role_obj_list, member_obj_list):
+        if len(role_obj_list) != len(member_obj_list):
             raise BOTCUtils.BOTCGameError("Incorrect number of players detected")
         else:
             ret = []
-            for player_id in player_id_list:
+            for member in member_obj_list:
                 role_obj = role_obj_list.pop()
-                player_obj = BOTCPlayer(player_id, role_obj)
+                player_obj = BOTCPlayer(member, role_obj)
                 ret.append(player_obj)
         self._player_obj_list = ret
     
@@ -399,12 +427,16 @@ class BOTCGameObject:
         return "BOTC Game Object"
     
     @property
+    def frozen_sitting(self):
+        return self._sitting_order
+    
+    @property
     def gamemode(self):
         return self._gamemode
     
     @property
-    def player_id_list(self):
-        return self._player_id_list
+    def member_obj_list(self):
+        return self._member_obj_list
 
 
 class Flag(enum.Enum):
@@ -419,8 +451,9 @@ class BOTCPlayer:
         dead = "dead"
         fleaved = "fleaved"
 
-    def __init__(self, userid_str, role_obj):
-        self._userid = userid_str
+    def __init__(self, user_obj, role_obj):
+        self._user_obj = user_obj
+        self._userid = user_obj.id
         self._real_role = role_obj 
         self._apparent_role = role_obj
         self._real_state = BOTCPlayer.PlayerState.alive
@@ -582,6 +615,9 @@ class Washerwoman(Townsfolk, BOTCRole, TroubleBrewing):
         self._role_name = TBRole.washerwoman
         self._art_link = "http://bloodontheclocktower.com/wiki/images/4/4d/Washerwoman_Token.png"
         self._wiki_link = "http://bloodontheclocktower.com/wiki/Washerwoman"
+    
+    def make_opening_dm_str(self):
+        pass
 
 
 class Librarian(Townsfolk, BOTCRole, TroubleBrewing):
@@ -1067,10 +1103,26 @@ tb_roles_dict = {str(role).lower(): [role.get_category().value, str(role),
 
 
 
-if __name__ == "__main__":
-    a = BOTCGameObject(BOTCGamemode.tb, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"])
+"""
+from config import *
+client = discord.Client()
+
+@client.event
+async def on_ready():
+    print("started")
+
+    id_list = ["606332710989856778", "705880115934134424", "692759037900619849", "184405311681986560", "600426113285750785", "700368052557971536", "629794816359923722", "700053212975202345"]
+
+    member_list = [client.get_server(WEREWOLF_SERVER).get_member(s) for s in id_list]
+
+    a = BOTCGameObject(BOTCGamemode.tb, member_list)
     #a = BOTCGameObject(BOTCGamemode.tb, ["1", "2", "3", "4", "5", "6", "7", "8"])
     #a = BOTCGameObject(BOTCGamemode.tb, ["1", "2", "3", "4", "5"])
+    a.frozen_sitting[3].exec_death()
+    a.frozen_sitting[0].exec_death()
     b = TownSquare(a)
-    print(a.player_id_list)
 
+    print(a._player_obj_list)
+
+client.run(TOKEN)
+"""

@@ -6389,25 +6389,27 @@ ACTUAL_WOLVES = ['wolf', 'werecrow', 'doomsayer', 'wolf cub', 'werekitten', 'wol
 WOLFCHAT_ROLES = ['wolf', 'werecrow', 'doomsayer', 'wolf cub', 'werekitten', 'wolf shaman', 'wolf mystic', 'traitor', 'sorcerer', 'warlock', 'hag']
 
 ########### END POST-DECLARATION STUFF #############
-client.loop.create_task(do_rate_limit_loop())
-client.loop.create_task(backup_settings_loop())
-try:
-    client.loop.run_until_complete(client.start(TOKEN))
-finally:
-    try:
-        try:
-            client.loop.run_until_complete(client.logout())
-        except:
-            pass
-        pending = asyncio.Task.all_tasks()
-        gathered = asyncio.gather(*pending)
 
+if __name__ == "__main__":
+    client.loop.create_task(do_rate_limit_loop())
+    client.loop.create_task(backup_settings_loop())
+    try:
+        client.loop.run_until_complete(client.start(TOKEN))
+    finally:
         try:
-            gathered.cancel()
-            client.loop.run_until_complete(gathered)
-            gathered.exception()
+            try:
+                client.loop.run_until_complete(client.logout())
+            except:
+                pass
+            pending = asyncio.Task.all_tasks()
+            gathered = asyncio.gather(*pending)
+
+            try:
+                gathered.cancel()
+                client.loop.run_until_complete(gathered)
+                gathered.exception()
+            except:
+                pass
         except:
-            pass
-    except:
-        print("Error in cleanup:\n" + traceback.format_exc())
-    client.loop.close()
+            print("Error in cleanup:\n" + traceback.format_exc())
+        client.loop.close()
