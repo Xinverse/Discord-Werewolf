@@ -3,9 +3,8 @@ import random
 import discord
 import datetime
 import math
+from config import BOT_PREFIX
 from PIL import Image, ImageDraw, ImageFont
-
-random.seed(datetime.datetime.now())
 
 # =======================================================================
 # ---------- ASSETS (settings, lore) ------------------------------------
@@ -13,6 +12,13 @@ random.seed(datetime.datetime.now())
 
 MIN_PLAYERS = 5
 MAX_PLAYERS = 15
+
+TOWNSFOLK_COLOR = 0x00f8fb
+OUTSIDER_COLOR = 0x00f8fb
+MINION_COLOR = 0xe10600
+DEMON_COLOR = 0xe10600
+
+random.seed(datetime.datetime.now())
 
 gamemode = {
     'trouble-brewing' : {
@@ -57,14 +63,54 @@ gamemode = {
 
 lore_text = {
 
-    "game_start_lore" : "Clouds roll in over Ravenswood Bluff, engulfing this sleepy town and its superstitious " \
-                        "inhabitants in foreboding shadow. Freshly-washed clothes dance eerily on lines strung " \
-                        "between cottages. Chimneys cough plumes of smoke into the air. Exotic scents waft " \
-                        "through cracks in windows and under doors, as hidden cauldrons lay bubbling. An " \
-                        "unusually warm Autumn breeze wraps around vine-covered walls and whispers ominously to " \
-                        "those brave enough to walk the cobbled streets. Those who can read the signs know there " \
-                        "is **Trouble Brewing**.",
-    "day_end_warning" : "Anxious mothers call their children home from play, as thunder begins to clap on the horizon."
+    "trouble-brewing" : {
+
+        "lobby_game_start_msg" : "{} Welcome to Blood on the Clocktower (BoTC), a bluffing game " \
+                                 "enjoyed by players on opposing teams of Good and Evil. A Demon " \
+                                 "is on the loose, murdering by night and disguised in human form " \
+                                 "by day. Will the good townsfolk put the puzzle together in time " \
+                                 "to execute the true demon and save themselves? Or will evil " \
+                                 "overrun this once peaceful village? Using the **{}** Edition with " \
+                                 "**{}** players.\nAll players check for PMs from me for instructions. " \
+                                 "If you did not receive a pm, please let {} know.",
+        
+        "lobby_game_start_lore" : "Clouds roll in over Ravenswood Bluff, engulfing this sleepy " \
+                                  "town and its superstitious inhabitants in foreboding shadow. " \
+                                  "An unusually warm Autumn breeze wraps around vine-covered walls and " \
+                                  "whispers ominously to those brave enough to walk the cobbled streets. " \
+                                  "Anxious mothers call their children home from play, as thunder begins " \
+                                  "to clap on the horizon. Those who can read the signs know there is... " \
+                                  "*Trouble Brewing*."
+
+    }, 
+
+    "botc" : {
+
+        "lobby_night_annouce" : "It is now **nighttime**.",
+
+        "lobby_day_announce" : "It is now **daytime**.", 
+
+        "lobby_game_end_stats" : "Game over! Night lasted {}. Day lasted {}. Game lasted {}.",
+
+        "lobby_game_end_good_win_lore" : "The Townsfolk has managed to defeat the Demon!",
+
+        "lobby_game_end_evil_win_lore" : "The Demon and its minions overpowers the village.",
+
+        "lobby_game_end_no_win_lore" : "No one wins.",
+
+        "private_game_start_opening" : "Welcome to Ravenswood Bluff, **{role_name_str}**! " \
+                                       "You are in the **{category_str}** category, on the " \
+                                       "**{team_str}** team. Type `{prefix}role {role_name_str}` " \
+                                       "to learn more."
+
+    },
+
+    "general" : {
+
+        "copyrights" : "Copyrights of BoTC belong to the Pandemonium Institute. The Developers " \
+                       "are not affiliated with them in any way."
+
+    }
 
 }
 
@@ -255,6 +301,8 @@ class BOTCRole:
     def __init__(self):
         self._desc_string = None  # Role description -> string
         self._instr_string = None  # Character text -> string
+        self._examp_string = None  # Mechanic examples text -> string
+        self._lore_string = None  # Lore text -> string
         self._role_name = None  # Role name -> enum.Enum
         self._art_link = None  # Character art url -> string 
         self._wiki_link = None  # Character wiki url -> string
@@ -292,11 +340,6 @@ class BOTCRole:
     
     def make_role_card_embed(self):
 
-        TOWNSFOLK_COLOR = 0x00f8fb
-        OUTSIDER_COLOR = 0x00f8fb
-        MINION_COLOR = 0xe10600
-        DEMON_COLOR = 0xe10600
-
         def make_embed(role_name, role_category, card_color, gm, gm_art_link, desc_str, char_str, pic_link, 
                        wiki_link):
             embed = discord.Embed(title = role_name, description = "[{}]".format(role_category), 
@@ -305,8 +348,7 @@ class BOTCRole:
             embed.set_thumbnail(url = pic_link)
             embed.add_field(name = "Description", value = desc_str, inline = False)
             embed.add_field(name = "Character Text", value = char_str + "\n" + wiki_link, inline = False)
-            embed.set_footer(text = "Copyrights of BoTC belong to the Pandemonium Institute. " \
-                                    "The Devs are not affiliated with them in any way.")
+            embed.set_footer(text = lore_text["general"]["copyrights"])
             return embed
 
         if self.get_category() == BOTCCategory.townsfolk:
@@ -324,6 +366,49 @@ class BOTCRole:
                            gm_art_link, self.get_role_desc(), self.get_role_player_instr(), pic_link, 
                            wiki_link)
         return embed
+    
+    def make_opening_dm_embed(self):
+        if self.get_category() == BOTCCategory.townsfolk:
+            color = TOWNSFOLK_COLOR  
+        elif self.get_category() == BOTCCategory.outsider:
+            color = OUTSIDER_COLOR
+        elif self.get_category() == BOTCCategory.minion:
+            color = MINION_COLOR
+        else:
+            color = DEMON_COLOR
+        opening_dm = "*{}*".format(self._lore_string)
+        opening_dm += "\n"
+        opening_dm += lore_text["botc"]["private_game_start_opening"].format(
+            role_name_str = self.role_name_str,
+            category_str = self.get_category().value,
+            team_str = self.get_team().value,
+            prefix = BOT_PREFIX)
+        opening_dm += "\n"
+        opening_dm += self._instr_string
+        embed = discord.Embed(title = "**Your role is {}**".format(self.role_name_str.upper()),
+                              url = self.char_wiki_link,
+                              description=opening_dm, color=color)
+        embed.set_author(name = "{} Edition - Blood on the Clocktower (BoTC)".format(self.gm_of_appearance.value),
+                         icon_url = self.gm_art_link)
+        embed.set_thumbnail(url = self.char_art_link)
+        embed.set_footer(text = lore_text["general"]["copyrights"])
+        return embed
+    
+    @property
+    def role_name_str(self):
+        return self._role_name.value
+    
+    @property
+    def char_wiki_link(self):
+        return self._wiki_link
+    
+    @property 
+    def gm_art_link(self):
+        return self._gm_art_link
+    
+    @property
+    def char_art_link(self):
+        return self._art_link
 
 
 class BOTCGameObject:
@@ -352,6 +437,7 @@ class BOTCGameObject:
         self.generate_frozen_sitting()
     
     def generate_role_set(self, num_player):
+        """Generate a list of roles according to the number of players"""
         if num_player > MAX_PLAYERS or num_player < MIN_PLAYERS:
             raise BOTCGameObject.IncorrectNumberPlayers("Must be between 5 and 15 players.")
         else:
@@ -405,6 +491,7 @@ class BOTCGameObject:
                 raise BOTCGameObject.NotBOTCGame("Gamemode is not one of BoTC editions.")
         
     def distribute_roles(self, role_obj_list, member_obj_list):
+        """Distribute the roles to the players"""
         if len(role_obj_list) != len(member_obj_list):
             raise BOTCUtils.BOTCGameError("Incorrect number of players detected")
         else:
@@ -420,6 +507,7 @@ class BOTCGameObject:
             player_obj._real_role.exec_init_flags(self)
     
     def generate_frozen_sitting(self):
+        """Freeze the sittings of the table around the game table"""
         random.shuffle(self._player_obj_list)
         self._sitting_order = tuple(self._player_obj_list)
     
@@ -596,13 +684,13 @@ class TroubleBrewing:
 # ---------- Townsfolk [Trouble Brewiding Edition] ----------
 
 class Washerwoman(Townsfolk, BOTCRole, TroubleBrewing):
-    """Washerwoman role object - trouble brewing edition
-    Starts knowing 1 of 2 players is a particular Townsfolk.
+    """Washerwoman role object - townsfolk - trouble brewing edition
+    You start knowing 1 of 2 players is a particular Townsfolk.
 
     - init_setup: NO  # Change the roles setup?
     - init_flags: NO  # Apply flags to other roles?
     - init_role: NO  # Sends a different role to the player?
-    - init_info: YES  # Sends initial info to the player?
+    - init_info: YES  # Sends opening info to the player?
     """
     
     def __init__(self):
@@ -610,14 +698,22 @@ class Washerwoman(Townsfolk, BOTCRole, TroubleBrewing):
         TroubleBrewing.__init__(self)
         Townsfolk.__init__(self)
         self._desc_string = "The Washerwoman learns that a particular Townsfolk character is in play, " \
-                            "but not exactly which player it is."
+                            "but not exactly who is playing it.\n" \
+                            "During the first night, the Washerwoman is woken, shown two players, " \
+                            "and learns the character of one of them.\n" \
+                            "They learn this only once and then learn nothing more."
+        self._examp_string = "Evin is the Chef, and Amy is the Ravenkeeper. The Washerwoman learns that " \
+                             "either Evin or Amy is the Chef.\n" \
+                             "Julian is the Imp, and Alex is the Virgin. The Washerwoman learns that " \
+                             "either Julian or Alex is the Virgin.\n" \
+                             "Marianna is the Spy, and Sarah is the Scarlet Woman. The Washerwoman " \
+                             "learns that one of them is the Ravenkeeper. (This happens because the Spy " \
+                             "is registering as a Townsfolk— in this case, the Ravenkeeper.)"
         self._instr_string = "You start knowing 1 of 2 players is a particular Townsfolk."
+        self._lore_string = "Bloodstains on a dinner jacket? No. This is cooking sherry. How careless."
         self._role_name = TBRole.washerwoman
         self._art_link = "http://bloodontheclocktower.com/wiki/images/4/4d/Washerwoman_Token.png"
         self._wiki_link = "http://bloodontheclocktower.com/wiki/Washerwoman"
-    
-    def make_opening_dm_str(self):
-        pass
 
 
 class Librarian(Townsfolk, BOTCRole, TroubleBrewing):

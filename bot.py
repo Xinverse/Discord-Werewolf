@@ -248,7 +248,7 @@ async def cmd_exec(message, parameters):
 @cmd('async', [2, 2], "```\n{0}async <code>\n\nExecutes <code> as a coroutine.```")
 async def cmd_async(message, parameters, recursion=0):
     if parameters == '':
-        await reply(message, commands['async'][2].format(PREFIX))
+        await reply(message, commands['async'][2].format(BOT_PREFIX))
         return
     env = {'message' : message,
            'parameters' : parameters,
