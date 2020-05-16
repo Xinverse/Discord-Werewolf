@@ -107,8 +107,7 @@ lore_text = {
 
     "general" : {
 
-        "copyrights" : "Copyrights of BoTC belong to the Pandemonium Institute. The Developers " \
-                       "are not affiliated with them in any way."
+        "copyrights" : "Copyrights of BoTC belong to the Pandemonium Institute."
 
     }
 
@@ -119,6 +118,7 @@ lore_text = {
 # -----------------------------------------------------------------------
 
 class BOTCUtils:
+    """Utility functions"""
 
     class BOTCGameError(Exception):
         pass
@@ -157,6 +157,7 @@ class BOTCUtils:
 
 
 class TownSquare:
+    """Graphical representation of player sittings in a BoTC game."""
     
     PIC_SQUARE_SIDE = 500
     BUFFER = 50
@@ -297,6 +298,7 @@ class TownSquare:
 
 
 class BOTCRole:
+    """BoTC role object"""
 
     def __init__(self):
         self._desc_string = None  # Role description -> string
@@ -313,6 +315,7 @@ class BOTCRole:
         self._botc_logo_link = "http://bloodontheclocktower.com/wiki/images/logo.png"  
                                # Logo art url -> string
         self.gm_of_appearance = None  # Gamemode of appearance -> enum.Enum
+        self._sudo_role = None  # The fake role players believe they have -> BOTCRole obj
 
     def __str__(self):
         return self._role_name.value
@@ -326,6 +329,9 @@ class BOTCRole:
     def get_role_player_instr(self):
         return self._instr_string
     
+    def get_role_examp(self):
+        return self._examp_string
+    
     def get_category(self):
         raise NotImplementedError
     
@@ -333,21 +339,28 @@ class BOTCRole:
         raise NotImplementedError
 
     def exec_init_setup(self, townsfolk_obj_list, outsider_obj_list, minion_obj_list, demon_obj_list):
+        """Allow for roles that change the setup to modify the role list
+        Overridden by child classes that do need to modify the setup.
+        """
         return [townsfolk_obj_list, outsider_obj_list, minion_obj_list, demon_obj_list] 
     
-    def exec_init_flags(self, game_obj):
-        return
+    def exec_init_sudo(self, game_obj):
+        """Allow for roles that give the player wrong info about their role to do so.
+        Overriden by child classes that do need to modify the setup.
+        """
+        self._sudo_role = self
     
     def make_role_card_embed(self):
 
-        def make_embed(role_name, role_category, card_color, gm, gm_art_link, desc_str, char_str, pic_link, 
+        def make_embed(role_name, role_category, card_color, gm, gm_art_link, desc_str, ex_str, pic_link, 
                        wiki_link):
-            embed = discord.Embed(title = role_name, description = "[{}]".format(role_category), 
+            embed = discord.Embed(title = "{} [{}]".format(role_name, role_category), 
+                                  description = "*{}*".format(self._lore_string), 
                                   color = card_color)
             embed.set_author(name = "Blood on the Clocktower - {}".format(gm), icon_url = gm_art_link)
             embed.set_thumbnail(url = pic_link)
             embed.add_field(name = "Description", value = desc_str, inline = False)
-            embed.add_field(name = "Character Text", value = char_str + "\n" + wiki_link, inline = False)
+            embed.add_field(name = "Examples", value = ex_str + "\n" + wiki_link, inline = False)
             embed.set_footer(text = lore_text["general"]["copyrights"])
             return embed
 
@@ -363,7 +376,7 @@ class BOTCRole:
         pic_link = self._art_link if self._art_link else self._botc_demon_link
         wiki_link = self._wiki_link if self._wiki_link else self._main_wiki_link
         embed = make_embed(self.__str__(), self.get_category().value, color, self.gm_of_appearance.value, 
-                           gm_art_link, self.get_role_desc(), self.get_role_player_instr(), pic_link, 
+                           gm_art_link, self.get_role_desc(), self.get_role_examp(), pic_link, 
                            wiki_link)
         return embed
     
@@ -376,15 +389,11 @@ class BOTCRole:
             color = MINION_COLOR
         else:
             color = DEMON_COLOR
-        opening_dm = "*{}*".format(self._lore_string)
-        opening_dm += "\n"
-        opening_dm += lore_text["botc"]["private_game_start_opening"].format(
+        opening_dm = lore_text["botc"]["private_game_start_opening"].format(
             role_name_str = self.role_name_str,
             category_str = self.get_category().value,
             team_str = self.get_team().value,
             prefix = BOT_PREFIX)
-        opening_dm += "\n"
-        opening_dm += self._instr_string
         embed = discord.Embed(title = "**Your role is {}**".format(self.role_name_str.upper()),
                               url = self.char_wiki_link,
                               description=opening_dm, color=color)
@@ -393,6 +402,10 @@ class BOTCRole:
         embed.set_thumbnail(url = self.char_art_link)
         embed.set_footer(text = lore_text["general"]["copyrights"])
         return embed
+    
+    def make_instruc_dm_str(self):
+        msg = self.get_role_player_instr()
+        return msg
     
     @property
     def role_name_str(self):
@@ -412,6 +425,7 @@ class BOTCRole:
 
 
 class BOTCGameObject:
+    """BoTC game object"""
 
     class Phase(enum.Enum):
         day = "day"
@@ -433,7 +447,6 @@ class BOTCGameObject:
         self._player_obj_list = []  # list object
         self._sitting_order = tuple()
         self.generate_role_set(len(self._member_obj_list))
-        self.generate_setup_flags()
         self.generate_frozen_sitting()
     
     def generate_role_set(self, num_player):
@@ -502,10 +515,6 @@ class BOTCGameObject:
                 ret.append(player_obj)
         self._player_obj_list = ret
     
-    def generate_setup_flags(self):
-        for player_obj in self._player_obj_list:
-            player_obj._real_role.exec_init_flags(self)
-    
     def generate_frozen_sitting(self):
         """Freeze the sittings of the table around the game table"""
         random.shuffle(self._player_obj_list)
@@ -527,12 +536,8 @@ class BOTCGameObject:
         return self._member_obj_list
 
 
-class Flag(enum.Enum):
-
-    fortune_teller_red_herring = "red herring"  # registers as evil to the fortune teller
-
-
 class BOTCPlayer:
+    """BoTC player object"""
 
     class PlayerState(enum.Enum):
         alive = "alive"
@@ -547,9 +552,6 @@ class BOTCPlayer:
         self._real_state = BOTCPlayer.PlayerState.alive
         self._apparent_state = BOTCPlayer.PlayerState.alive
         self._flags = []
-    
-    def set_flag(self, flag_obj):
-        self._flags.append(flag_obj)
     
     @property
     def real_role(self):
@@ -585,6 +587,7 @@ class BOTCPlayer:
 # -----------------------------------------------------------------------
 
 class BOTCGamemode(enum.Enum):
+    """BoTC gamemode enum object: TB, BMR, S&V"""
 
     tb = "Trouble-Brewing"
     bmr = "Bad-Moon-Rising"
@@ -592,6 +595,7 @@ class BOTCGamemode(enum.Enum):
 
 
 class BOTCCategory(enum.Enum):
+    """BoTC role category enum object: Townsfolk, Outsider, Minion, Demon"""
 
     townsfolk = "Townsfolk"
     outsider = "Outsider"
@@ -600,12 +604,14 @@ class BOTCCategory(enum.Enum):
 
 
 class BOTCTeam(enum.Enum):
+    """BoTC alliance/team enum object: Good, Evil"""
 
     good = "Good"
     evil = "Evil"
 
 
 class Townsfolk:
+    """Townsfolk object"""
     
     def get_category(self):
         return BOTCCategory.townsfolk
@@ -615,6 +621,7 @@ class Townsfolk:
 
 
 class Outsider:
+    """Outsider object"""
 
     def get_category(self):
         return BOTCCategory.outsider
@@ -624,6 +631,7 @@ class Outsider:
 
 
 class Minion:
+    """Minion object"""
 
     def get_category(self):
         return BOTCCategory.minion
@@ -633,6 +641,7 @@ class Minion:
 
 
 class Demon:
+    """Demon object"""
     
     def get_category(self):
         return BOTCCategory.demon
@@ -688,25 +697,23 @@ class Washerwoman(Townsfolk, BOTCRole, TroubleBrewing):
     You start knowing 1 of 2 players is a particular Townsfolk.
 
     - init_setup: NO  # Change the roles setup?
-    - init_flags: NO  # Apply flags to other roles?
     - init_role: NO  # Sends a different role to the player?
-    - init_info: YES  # Sends opening info to the player?
     """
     
     def __init__(self):
         BOTCRole.__init__(self)
         TroubleBrewing.__init__(self)
         Townsfolk.__init__(self)
-        self._desc_string = "The Washerwoman learns that a particular Townsfolk character is in play, " \
+        self._desc_string = "- The Washerwoman learns that a particular Townsfolk character is in play, " \
                             "but not exactly who is playing it.\n" \
-                            "During the first night, the Washerwoman is woken, shown two players, " \
+                            "- During the first night, the Washerwoman is woken, shown two players, " \
                             "and learns the character of one of them.\n" \
-                            "They learn this only once and then learn nothing more."
-        self._examp_string = "Evin is the Chef, and Amy is the Ravenkeeper. The Washerwoman learns that " \
+                            "- They learn this only once and then learn nothing more."
+        self._examp_string = "- Evin is the Chef, and Amy is the Ravenkeeper. The Washerwoman learns that " \
                              "either Evin or Amy is the Chef.\n" \
-                             "Julian is the Imp, and Alex is the Virgin. The Washerwoman learns that " \
+                             "- Julian is the Imp, and Alex is the Virgin. The Washerwoman learns that " \
                              "either Julian or Alex is the Virgin.\n" \
-                             "Marianna is the Spy, and Sarah is the Scarlet Woman. The Washerwoman " \
+                             "- Marianna is the Spy, and Sarah is the Scarlet Woman. The Washerwoman " \
                              "learns that one of them is the Ravenkeeper. (This happens because the Spy " \
                              "is registering as a Townsfolk— in this case, the Ravenkeeper.)"
         self._instr_string = "You start knowing 1 of 2 players is a particular Townsfolk."
@@ -717,13 +724,12 @@ class Washerwoman(Townsfolk, BOTCRole, TroubleBrewing):
 
 
 class Librarian(Townsfolk, BOTCRole, TroubleBrewing):
-    """Librarian role object - trouble brewing edition
-    Starts knowing 1 of 2 players is a particular Outsider
+    """Librarian role object - townsfolk - trouble brewing edition
+    You start knowing that 1 of 2 players is a particular Outsider.
+    (Or that zero are in play)
     
     - init_setup: NO  # Change the roles setup?
-    - init_flags: NO  # Apply flags to other roles?
     - init_role: NO  # Sends a different role to the player?
-    - init_info: YES  # Sends initial info to the player?
     """
     
     def __init__(self):
@@ -731,22 +737,36 @@ class Librarian(Townsfolk, BOTCRole, TroubleBrewing):
         TroubleBrewing.__init__(self)
         Townsfolk.__init__(self)
         self._desc_string = "The Librarian learns that a particular Outsider character is in play, " \
-                            "but not exactly which player it is."
+                            "but not who is playing it.\n" \
+                            "- During the first night, the Librarian learns that one of two players " \
+                            "is a specific Outsider.\n" \
+                            "- They learn this only once and then learn nothing more.\n" \
+                            "- The Drunk is an Outsider. If the Librarian learns that 1 of 2 " \
+                            "players is the Drunk, they do not learn the Townsfolk that the player " \
+                            "thinks that they are."
+        self._examp_string = "- Benjamin is the Saint, and Filip is the Baron. The Librarian learns " \
+                             "that either Benjamin or Filip is the Saint.\n" \
+                             "- The Storyteller decides that the Recluse registers as a Minion, " \
+                             "not an Outsider. There are no other Outsiders in play. The Librarian " \
+                             "learns a '0'.\n" \
+                             "- Abdallah is the Drunk, who thinks they are the Monk, and Douglas is " \
+                             "the Undertaker. The Librarian learns that either Abdallah or Douglas " \
+                             "is the Drunk."
         self._instr_string = "You start knowing that 1 of 2 players is a particular Outsider." \
                              "(Or that zero are in play)"
+        self._lore_string = "Certainly, madam, you may borrow the Codex Malificarium from the " \
+                            "library vaults."
         self._role_name = TBRole.librarian
         self._art_link = "http://bloodontheclocktower.com/wiki/images/8/86/Librarian_Token.png"
         self._wiki_link = "http://bloodontheclocktower.com/wiki/Librarian"
 
 
 class Investigator(Townsfolk, BOTCRole, TroubleBrewing):
-    """Investigator role object - trouble brewing edition
-    Starts knowing 1 of 2 players is a particular Minion
+    """Investigator role object - townsfolk - trouble brewing edition
+    You start knowing 1 of 2 players is a particular Minion.
 
     - init_setup: NO  # Change the roles setup?
-    - init_flags: NO  # Apply flags to other roles?
     - init_role: NO  # Sends a different role to the player?
-    - init_info: YES  # Sends initial info to the player?
     """
 
     def __init__(self):
@@ -754,63 +774,104 @@ class Investigator(Townsfolk, BOTCRole, TroubleBrewing):
         TroubleBrewing.__init__(self)
         Townsfolk.__init__(self)
         self._desc_string = "The Investigator learns that a particular Minion character is in play, " \
-                            "but not exactly which player it is."
+                            "but not exactly which player it is.\n" \
+                            "- During the first night, the Investigator is woken and shown two players, " \
+                            "but only learns the character of one of them.\n" \
+                            "- They learn this only once and then learn nothing more."
+        self._examp_string = "- Amy is the Baron, and Julian is the Mayor. The Investigator learns " \
+                             "that either Amy or Julian is the Baron.\n" \
+                             "- Angelus is the Spy, and Lewis is the Poisoner. The Investigator " \
+                             "learns that either Angelus or Lewis is the Spy.\n" \
+                             "- Brianna is the Recluse, and Marianna is the Imp. The Investigator " \
+                             "learns that either Brianna or Marianna is the Poisoner. (This happens " \
+                             "because the Recluse is registering as a Minion—in this case, the Poisoner.)"
         self._instr_string = "You start knowing 1 of 2 players is a particular Minion."
         self._role_name = TBRole.investigator
+        self._lore_string = "It is a fine night for a stroll, wouldn't you say, Mister Morozov? " \
+                            "Or should I say... BARON Morozov?"
         self._art_link = "http://bloodontheclocktower.com/wiki/images/e/ec/Investigator_Token.png"
         self._wiki_link = "http://bloodontheclocktower.com/wiki/Investigator"
 
 
 class Chef(Townsfolk, BOTCRole, TroubleBrewing):
-    """Chef role object - trouble brewing edition
-    Starts knowing how many pairs of evil players there are
+    """Chef role object - townsfolk - trouble brewing edition
+    You start knowing how many pairs of evil players there are.
     
     - init_setup: NO  # Change the roles setup?
-    - init_flags: NO  # Apply flags to other roles?
     - init_role: NO  # Sends a different role to the player?
-    - init_info: YES  # Sends initial info to the player?
     """
     
     def __init__(self):
         BOTCRole.__init__(self)
         TroubleBrewing.__init__(self)
         Townsfolk.__init__(self)
-        self._desc_string = "The Chef knows if evil players are sitting next to each other."
+        self._desc_string = "The Chef knows if evil players are sitting next to each other.\n" \
+                            "- On the first night, the Chef learns exactly how many pairs there " \
+                            "are in total. A pair is two players, but one player may be a part of " \
+                            "two pairs. So, two players sitting next to each other count as one " \
+                            "pair, three players sitting next to each other count as two pairs. " \
+                            "Four players sitting next to each other count as three pairs. And so " \
+                            "on."
+        self._examp_string = "- No evil players are sitting next to each other. The Chef learns " \
+                             "a '0.'\n" \
+                             "- The Imp is sitting next to the Baron. Across the circle, " \
+                             "the Poisoner is sitting next to the Scarlet Woman. The Chef learns " \
+                             "a '2.'\n" \
+                             "- An evil Scapegoat is sitting between the Imp and a Minion. " \
+                             "Across the circle, two other Minions are sitting next to each other. " \
+                             "The Chef learns a '3.'"
         self._instr_string = "You start knowing how many pairs of evil players there are."
         self._role_name = TBRole.chef
+        self._lore_string = "This evening's reservations seem odd. Never before has Mrs. " \
+                            "Mayweather kept company with that scamp from Hudson Lane."
         self._art_link = "http://bloodontheclocktower.com/wiki/images/4/4c/Chef_Token.png"
         self._wiki_link = "http://bloodontheclocktower.com/wiki/Chef"
 
 
 class Empath(Townsfolk, BOTCRole, TroubleBrewing):
-    """Empath role object - trouble brewing edition
-    Learns how many of their 2 alive neighbors are evil
+    """Empath role object - townsfolk - trouble brewing edition
+    Each night, you learn how many of your 2 alive neighbors are evil.
     
     - init_setup: NO  # Change the roles setup?
-    - init_flags: NO  # Apply flags to other roles?
     - init_role: NO  # Sends a different role to the player?
-    - init_info: NO  # Sends initial info to the player?
     """
     
     def __init__(self):
         BOTCRole.__init__(self)
         TroubleBrewing.__init__(self)
         Townsfolk.__init__(self)
-        self._desc_string = "The Empath keeps learning if their living neighbors are good or evil."
+        self._desc_string = "The Empath keeps learning if their living neighbors are good or evil.\n" \
+                            "- The Empath only learns how many of their neighbors are evil, not " \
+                            "which one is evil.\n" \
+                            "- The Empath does not detect dead players. So, if the Empath is sitting " \
+                            "next to a dead player, the information refers not to the dead player, " \
+                            "but to the closest alive player in that direction.\n" \
+                            "- The Empath acts after the Demon, so if the Demon kills one of the " \
+                            "Empath’s alive neighbors, the Empath does not learn about the now-dead " \
+                            "player. The Empath's information is accurate at dawn, not at dusk."
+        self._examp_string = "- The Empath neighbors two good players—a Soldier and a Monk. " \
+                             "The Empath learns a '0.'\n" \
+                             "- The next day, the Soldier is executed. That night, the Monk is " \
+                             "killed by the Imp. The Empath now detects the players sitting " \
+                             "next to the Soldier and the Monk, which are a Librarian and an " \
+                             "evil Gunslinger. The Empath now learns a '1.'\n" \
+                             "- There are only three players left alive: the Empath, the Imp, " \
+                             "and the Baron. No matter who is seated where, the Empath learns a " \
+                             "'2.'\n"
         self._instr_string = "Each night, you learn how many of your 2 alive neighbors are evil."
         self._role_name = TBRole.empath
+        self._lore_string = "My skin prickles. Something is not right here. I can feel it."
         self._art_link = "http://bloodontheclocktower.com/wiki/images/6/61/Empath_Token.png"
         self._wiki_link = "http://bloodontheclocktower.com/wiki/Empath"
 
 
 class FortuneTeller(Townsfolk, BOTCRole, TroubleBrewing):
     """Fortune teller role object - trouble brewing edition
-    Chooses 2 players and learns if either is a demon, there is a red herring
+    Each night, choose 2 players: you learn if either is a Demon. There is 1 good player 
+    that registers falsely to you.
     
     - init_setup: NO  # Change the roles setup?
-    - init_flags: YES  # Apply flags to other roles?
     - init_role: NO  # Sends a different role to the player?
-    - init_info: NO  # Sends initial info to the player?
     """
     
     def __init__(self):
@@ -822,16 +883,10 @@ class FortuneTeller(Townsfolk, BOTCRole, TroubleBrewing):
         self._instr_string = "Each night, choose 2 players: you learn if either is a Demon. " \
                              "There is 1 good player that registers falsely to you."
         self._role_name = TBRole.fortuneteller
+        self._lore_string = "I sense great evil in your soul! But... that could just be " \
+                            "your perfume. I am allergic to elderberry."
         self._art_link = "http://bloodontheclocktower.com/wiki/images/3/3a/Fortune_Teller_Token.png"
         self._wiki_link = "http://bloodontheclocktower.com/wiki/Fortune_Teller"
-    
-    def exec_init_flags(self, game_obj):
-        random.shuffle(game_obj._player_obj_list)
-        for player_obj in game_obj._player_obj_list:
-            role_obj = player_obj._real_role
-            if role_obj.get_team() == BOTCTeam.good:
-                player_obj.set_flag(Flag.fortune_teller_red_herring)
-                return
 
 
 class Undertaker(Townsfolk, BOTCRole, TroubleBrewing):
@@ -1034,6 +1089,10 @@ class Drunk(Outsider, BOTCRole, TroubleBrewing):
         self._role_name = TBRole.drunk
         self._art_link = "http://bloodontheclocktower.com/wiki/images/0/03/Drunk_Token.png"
         self._wiki_link = "http://bloodontheclocktower.com/wiki/Drunk"
+    
+    def exec_init_role(self):
+        """Send a different character than Drunk to the player."""
+        return
 
 
 class Recluse(Outsider, BOTCRole, TroubleBrewing):
