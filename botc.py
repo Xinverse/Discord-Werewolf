@@ -879,7 +879,27 @@ class FortuneTeller(Townsfolk, BOTCRole, TroubleBrewing):
         TroubleBrewing.__init__(self)
         Townsfolk.__init__(self)
         self._desc_string = "The Fortune Teller detects who the Demon is, " \
-                            "but sometimes thinks good players are Demons."
+                            "but sometimes thinks good players are Demons.\n" \
+                            "- Each night, the Fortune Teller chooses two players and learns if at " \
+                            "least one of them is a Demon. They do not learn which of them is a " \
+                            "Demon, just that one of them is. If neither is the Demon, they learn " \
+                            "this instead.\n" \
+                            "- Unfortunately, one player, called the Red Herring, will register as " \
+                            "a Demon to the Fortune Teller if chosen. The Red Herring is the same " \
+                            "player throughout the entire game. This player may be any good player, " \
+                            "even the Fortune Teller, and the Fortune Teller does not know which " \
+                            "player it is.\n" \
+                            "- The Fortune Teller may choose any two players—alive or dead, or even " \
+                            "themself. If they choose a dead Demon, then the Fortune Teller still " \
+                            "receives a nod."
+        self._examp_string = "- The Fortune Teller chooses the Mayor and the Undertaker, and learns " \
+                             "a 'no.'\n" \
+                             "- The Fortune Teller chooses the Imp and the Empath, and learns a " \
+                             "'yes.'\n" \
+                             "- The Fortune Teller chooses an alive Imp and a dead Imp, and learns a " \
+                             "'yes.'\n" \
+                             "- The Fortune Teller chooses themself and a Saint, who is the Red " \
+                             "Herring. The Fortune Teller learns a 'yes.'"
         self._instr_string = "Each night, choose 2 players: you learn if either is a Demon. " \
                              "There is 1 good player that registers falsely to you."
         self._role_name = TBRole.fortuneteller
@@ -890,78 +910,131 @@ class FortuneTeller(Townsfolk, BOTCRole, TroubleBrewing):
 
 
 class Undertaker(Townsfolk, BOTCRole, TroubleBrewing):
-    """Undertaker role object - trouble brewing edition
-    Learns which character died by execution today.
+    """Undertaker role object - townsfolk - trouble brewing edition
+    Each night, you learn which character died by execution today.
 
     - init_setup: NO  # Change the roles setup?
-    - init_flags: NO  # Apply flags to other roles?
     - init_role: NO  # Sends a different role to the player?
-    - init_info: NO  # Sends initial info to the player?
     """
 
     def __init__(self):
         BOTCRole.__init__(self)
         TroubleBrewing.__init__(self)
         Townsfolk.__init__(self)
-        self._desc_string = "The Undertaker learns which character was executed today."
+        self._desc_string = "The Undertaker learns which character was executed today.\n" \
+                            "- The player must have died from execution for the Undertaker to " \
+                            "learn who they are. Deaths during the day for other reasons, such " \
+                            "as the Gunslinger choosing a player to kill, or the exile of a " \
+                            "Traveler, do not count. Execution without death—rare as it is—does " \
+                            "not count.\n" \
+                            "- The Undertaker wakes each night except the first, as there have " \
+                            "been no executions yet.\n" \
+                            "- If nobody died by execution today, the Undertaker learns nothing. " \
+                            "The Storyteller either does not wake the Undertaker at night, or " \
+                            "wakes them but does not show a token.\n" \
+                            "- If the Drunk is executed, the Undertaker is shown the the Drunk " \
+                            "character token, not the Townsfolk that the player thought they were."
+        self._examp_string = "- The Mayor is executed today. That night, the Undertaker is " \
+                             "shown the Mayor token.\n" \
+                             "- The Drunk, who thinks they are the Virgin, is executed today. " \
+                             "The Undertaker is shown the Drunk token, because the Undertaker " \
+                             "learns the actual character of the player, not the character " \
+                             "the player thinks they are.\n" \
+                             "- The Spy is executed. Two Travelers are exiled. That night, " \
+                             "the Undertaker is shown the Butler token, because the Spy is " \
+                             "registering as the Butler, and because the exiles are not " \
+                             "executions.\n" \
+                             "- Nobody was executed today. That night, the Undertaker does not wake."
         self._instr_string = "Each night, you learn which character died by execution today."
         self._role_name = TBRole.undertaker
+        self._lore_string = "Hmmm....what have we here? The left boot is worn down to the " \
+                            "heel, with flint shavings under the tongue. This is the garb of " \
+                            "a military man."
         self._art_link = "http://bloodontheclocktower.com/wiki/images/f/fe/Undertaker_Token.png"
         self._wiki_link = "http://bloodontheclocktower.com/wiki/Undertaker"
 
 
 class Monk(Townsfolk, BOTCRole, TroubleBrewing):
-    """Monk role object - trouble brewing edition
-    Chooses a player (not themself) to protect them from demon kill
+    """Monk role object - townsfolk - trouble brewing edition
+    Each night*, choose a player (not yourself): they are safe from the Demon tonight.
     
     - init_setup: NO  # Change the roles setup?
-    - init_flags: YES  # Apply flags to other roles?
     - init_role: NO  # Sends a different role to the player?
-    - init_info: NO  # Sends initial info to the player?
     """
     
     def __init__(self):
         BOTCRole.__init__(self)
         TroubleBrewing.__init__(self)
         Townsfolk.__init__(self)
-        self._desc_string = "The Monk protects other people from the Demon."
+        self._desc_string = "The Monk protects other people from the Demon.\n" \
+                            "- Each night except the first, the Monk may choose to protect any " \
+                            "player except themself.\n" \
+                            "- If the Demon attacks a player who has been protected by the Monk, " \
+                            "then that player does not die. The Demon does not get to attack " \
+                            "another player—there is simply no death tonight.\n" \
+                            "- The Monk does not protect against other harmful effects such as " \
+                            "poisoning, drunkenness, or Outsider penalties. The Monk does not " \
+                            "protect against the Demon nominating and executing someone."
+        self._examp_string = "- The Monk protects the Fortune Teller. The Imp attacks the " \
+                             "Fortune Teller. No deaths occur tonight.\n" \
+                             "- The Monk protects the Mayor, and the Imp attacks the Mayor. " \
+                             "The Mayor's 'another player dies' ability does not trigger, " \
+                             "because the Mayor is safe from the Imp. Nobody dies tonight.\n" \
+                             "- The Monk protects the Imp. The Imp chooses to kill themself " \
+                             "tonight, but nothing happens. The Imp stays alive and a new " \
+                             "Imp is not created.\n"
         self._instr_string = "Each night*, choose a player (not yourself): " \
                              "they are safe from the Demon tonight."
         self._role_name = TBRole.monk
+        self._lore_string = "Tis an ill and deathly wind that blows tonight. Come, my " \
+                            "brother, take shelter in the abbey while the storm rages. By my " \
+                            "word, or by my life, you will be safe."
         self._art_link = "http://bloodontheclocktower.com/wiki/images/1/1b/Monk_Token.png"
         self._wiki_link = "http://bloodontheclocktower.com/wiki/Monk"
 
 
 class Ravenkeeper(Townsfolk, BOTCRole, TroubleBrewing):
-    """Ravenkeeper role object - trouble brewing edition
-    If they die at night, choose any player to learn their character.
+    """Ravenkeeper role object - townsfolk - trouble brewing edition
+    If you die at night, you are woken to choose a player: you learn their character.
     
     - init_setup: NO  # Change the roles setup?
-    - init_flags: NO  # Apply flags to other roles?
     - init_role: NO  # Sends a different role to the player?
-    - init_info: NO  # Sends initial info to the player?
     """
     
     def __init__(self):
         BOTCRole.__init__(self)
         TroubleBrewing.__init__(self)
         Townsfolk.__init__(self)
-        self._desc_string = "The Ravenkeeper learns any player's character, but only if they die at night."
+        self._desc_string = "The Ravenkeeper learns any player's character, but only if they die " \
+                            "at night.\n" \
+                            "- The Ravenkeeper is woken on the night that they die, and chooses a " \
+                            "player immediately.\n" \
+                            "- The Ravenkeeper may choose a dead player if they wish."
+        self._examp_string = "- The Ravenkeeper is killed by the Imp, and then wakes to choose a " \
+                             "player. After some deliberation, they choose Benjamin. Benjamin is " \
+                             "the Empath, and the Ravenkeeper learns this.\n" \
+                             "- The Imp attacks the Mayor. The Mayor doesn't die, but the " \
+                             "Ravenkeeper dies instead, due to the Mayor's ability. The " \
+                             "Ravenkeeper is woken and chooses Douglas, who is a dead Recluse. " \
+                             "The Ravenkeeper learns that Douglas is the Scarlet Woman, since the " \
+                             "Recluse registered as a Minion."
         self._instr_string = "If you die at night, you are woken to choose a player: " \
                              "you learn their character."
         self._role_name = TBRole.ravenkeeper
+        self._lore_string = "My birds will avenge me! Fly! Fly, my sweet and dutiful pets! Take " \
+                            "your message to those in dark corners! To the manor and to the river! " \
+                            "Let them read of the nature of my death."
         self._art_link = "http://bloodontheclocktower.com/wiki/images/4/45/Ravenkeeper_Token.png"
         self._wiki_link = "http://bloodontheclocktower.com/wiki/Ravenkeeper"
 
 
 class Virgin(Townsfolk, BOTCRole, TroubleBrewing):
-    """Virgin role object - trouble brewing edition
-    The first time they are nominated, if the nominator is a Townsfolk, they are executed immediately.
+    """Virgin role object - townfolk - trouble brewing edition
+    The 1st time you are nominated, if the nominator is a Townsfolk, 
+    they are executed immediately.
 
     - init_setup: NO  # Change the roles setup?
-    - init_flags: NO  # Apply flags to other roles?
     - init_role: NO  # Sends a different role to the player?
-    - init_info: NO  # Sends initial info to the player?
     """
 
     def __init__(self):
@@ -973,6 +1046,9 @@ class Virgin(Townsfolk, BOTCRole, TroubleBrewing):
         self._instr_string = "The 1st time you are nominated, if the nominator is a Townsfolk, " \
                              "they are executed immediately."
         self._role_name = TBRole.virgin
+        self._lore_string = "I am pure. Let those who are without sin cast themself down " \
+                            "and suffer in my stead. My reputation shall not be stained with " \
+                            "your venomous accusations."
         self._art_link = "http://bloodontheclocktower.com/wiki/images/5/5e/Virgin_Token.png"
         self._wiki_link = "http://bloodontheclocktower.com/wiki/Virgin"
 
