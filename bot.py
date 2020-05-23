@@ -647,7 +647,7 @@ async def cmd_role(message, parameters):
         if botc_tb_module_name in sys.modules:
             if role in botc_troublebrewing.tb_roles_dict:
                 botc_role_obj = botc_troublebrewing.BOTCUtils.find_role_by_name(role, botc_troublebrewing.tb_roles_list)
-                await client.send_message(message.channel, embed=botc_role_obj.make_role_card_embed())
+                await botc_role_obj.make_role_card_embed(client, message.channel)
                 return
         await reply(message, "{}```\nRole name: {}\nTeam: {}\nDescription: {}\n```".format(
             link, role, roles[role][0], roles[role][2]))

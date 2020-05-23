@@ -350,7 +350,7 @@ class BOTCRole:
         """
         self._sudo_role = self
     
-    def make_role_card_embed(self):
+    async def send_role_card_embed(self, client, channel):
 
         def make_embed(role_name, role_category, card_color, gm, gm_art_link, desc_str, ex_str, pic_link, 
                        wiki_link):
@@ -378,9 +378,9 @@ class BOTCRole:
         embed = make_embed(self.__str__(), self.get_category().value, color, self.gm_of_appearance.value, 
                            gm_art_link, self.get_role_desc(), self.get_role_examp(), pic_link, 
                            wiki_link)
-        return embed
+        await client.send_message(channel, embed=embed)
     
-    def make_opening_dm_embed(self):
+    async def send_opening_dm_embed(self, client, member_obj):
         if self.get_category() == BOTCCategory.townsfolk:
             color = TOWNSFOLK_COLOR  
         elif self.get_category() == BOTCCategory.outsider:
@@ -401,7 +401,7 @@ class BOTCRole:
                          icon_url = self.gm_art_link)
         embed.set_thumbnail(url = self.char_art_link)
         embed.set_footer(text = lore_text["general"]["copyrights"])
-        return embed
+        await client.send_message(member_obj, embed=embed)
     
     def make_instruc_dm_str(self):
         msg = self.get_role_player_instr()
@@ -441,13 +441,21 @@ class BOTCGameObject:
     def __init__(self, gamemode, member_obj_list):
         if gamemode not in BOTCGamemode:
             raise BOTCGameObject.NotBOTCGame("Gamemode is not one of BoTC editions.")
-        self._phase = BOTCGameObject.Phase.idle
-        self._gamemode = gamemode  # enum.Enum object here
-        self._member_obj_list = member_obj_list
+        self._gamemode = gamemode  # enum.Enum object 
+        self._member_obj_list = member_obj_list  # list object
         self._player_obj_list = []  # list object
-        self._sitting_order = tuple()
+        self._sitting_order = tuple()  # tuple object (for immutability)
         self.generate_role_set(len(self._member_obj_list))
         self.generate_frozen_sitting()
+        self.make_nightfall()  
+    
+    def make_nightfall(self):
+        """Game nightfall transition"""
+        self._phase = BOTCGameObject.Phase.night
+
+    def make_daybreak(self):
+        """Game daybreak transition"""
+        self._phase = BOTCGameObject.Phase.day
     
     def generate_role_set(self, num_player):
         """Generate a list of roles according to the number of players"""
@@ -491,7 +499,7 @@ class BOTCGameObject:
                 setup = final_townsfolk + final_outsider + final_minion + final_demon
                 random.shuffle(setup)
                 #print(setup)
-                self.distribute_roles(setup, self.member_obj_list)
+                self._distribute_roles(setup, self.member_obj_list)
                 return
 
             # Bad moon rising mode
@@ -503,7 +511,7 @@ class BOTCGameObject:
             else:
                 raise BOTCGameObject.NotBOTCGame("Gamemode is not one of BoTC editions.")
         
-    def distribute_roles(self, role_obj_list, member_obj_list):
+    def _distribute_roles(self, role_obj_list, member_obj_list):
         """Distribute the roles to the players"""
         if len(role_obj_list) != len(member_obj_list):
             raise BOTCUtils.BOTCGameError("Incorrect number of players detected")
@@ -1041,8 +1049,26 @@ class Virgin(Townsfolk, BOTCRole, TroubleBrewing):
         BOTCRole.__init__(self)
         TroubleBrewing.__init__(self)
         Townsfolk.__init__(self)
-        self._desc_string = "The Virgin is safe from execution... perhaps. " \
-                            "In the process, they confirm which players are Townsfolk."
+        self._desc_string = "The Virgin is safe from execution...perhaps. In the process, " \
+                            "they confirm if their nominator is a Townsfolk.\n" \
+                            "- If a Townsfolk nominates the Virgin, then that Townsfolk is " \
+                            "executed immediately. Because there can only be one execution " \
+                            "per day, the nomination process immediately ends, even if a " \
+                            "player was about to die.\n" \
+                            "- Only Townsfolk are executed due to the Virgin's ability. " \
+                            "If an Outsider, Minion, or Demon nominates the Virgin, nothing " \
+                            "happens, and voting continues.\n" \
+                            "- The Virgin’s ability is powerful because if a Townsfolk nominates " \
+                            "them and dies, then both characters are almost certainly Townsfolk.\n" \
+                            "- After being nominated for the first time, the Virgin loses their " \
+                            "ability, even if the nominator did not die, and even if the Virgin " \
+                            "was poisoned or drunk."
+        self._examp_string = "- The Washerwoman nominates the Virgin. The Washerwoman dies, " \
+                             "and voting ends.\n" \
+                             "- The Drunk, who thinks they are the Chef, nominates the Virgin. " \
+                             "The Drunk remains alive, and the Virgin loses their ability. " \
+                             "Players may now vote on whether or not to execute the Virgin. " \
+                             "(This happens because the Drunk is not a Townsfolk.)"
         self._instr_string = "The 1st time you are nominated, if the nominator is a Townsfolk, " \
                              "they are executed immediately."
         self._role_name = TBRole.virgin
@@ -1054,13 +1080,11 @@ class Virgin(Townsfolk, BOTCRole, TroubleBrewing):
 
 
 class Slayer(Townsfolk, BOTCRole, TroubleBrewing):
-    """Slayer role object - trouble brewing edition
-    Choose a player, if they are the demon, they die
+    """Slayer role object - townsfolk - trouble brewing edition
+    Once per game, during the day, publicly choose a player: if they are the Demon, they die.
     
     - init_setup: NO  # Change the roles setup?
-    - init_flags: NO  # Apply flags to other roles?
     - init_role: NO  # Sends a different role to the player?
-    - init_info: NO  # Sends initial info to the player?
     """
 
     def __init__(self):
@@ -1068,9 +1092,11 @@ class Slayer(Townsfolk, BOTCRole, TroubleBrewing):
         TroubleBrewing.__init__(self)
         Townsfolk.__init__(self)
         self._desc_string = "The Slayer can kill the Demon by guessing who it is."
+        self._examp_string = ""
         self._instr_string = "Once per game, during the day, publicly choose a player: " \
                              "if they are the Demon, they die."
         self._role_name = TBRole.slayer
+        self._lore_string = "Die."
         self._art_link = "http://bloodontheclocktower.com/wiki/images/2/2f/Slayer_Token.png"
         self._wiki_link = "http://bloodontheclocktower.com/wiki/Slayer"
 
@@ -1342,7 +1368,9 @@ client = discord.Client()
 async def on_ready():
     print("started")
 
-    id_list = ["606332710989856778", "705880115934134424", "692759037900619849", "184405311681986560", "600426113285750785", "700368052557971536", "629794816359923722", "700053212975202345"]
+    id_list = ["606332710989856778", "705880115934134424", "692759037900619849", 
+    "184405311681986560", "600426113285750785", "700368052557971536", "629794816359923722", 
+    "700053212975202345"]
 
     member_list = [client.get_server(WEREWOLF_SERVER).get_member(s) for s in id_list]
 
