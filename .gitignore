@@ -137,3 +137,12 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+bot-env
+*.code-workspace
+
+config.py
+settings.py
+debug.txt
+notify.txt
+stasis.json

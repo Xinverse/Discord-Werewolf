@@ -2992,11 +2992,14 @@ def misdirect(player, alive_players=None):
     return random.choice([alive_players[len(alive_players)-1] if alive_players.index(player) == 0 else alive_players[alive_players.index(player)-1], alive_players[0] if alive_players.index(player) == len(alive_players)-1 else alive_players[alive_players.index(player)+1]])
 
 def has_privileges(level, message):
+    command = message.content.strip()[len(BOT_PREFIX):].lower().split(' ')[0]
     if message.author.id == OWNER_ID:
         return True
     elif level == 1 and message.author.id in ADMINS:
         return True
     elif level == 0:
+        return True
+    elif message.channel.id == SPEC_CHANNEL and command == "stats":
         return True
     else:
         return False
